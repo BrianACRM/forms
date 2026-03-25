@@ -424,6 +424,15 @@
           </select>
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ground Event <span class="hint">(Note 4 — static aircraft ground event)</span></label>
+          <select id="natops_groundEvent">
+            <option value="">No</option>
+            <option value="yes">Yes — append "Evaluation conducted as ground event"</option>
+          </select>
+        </div>
+      </div>
 
       <hr class="divider">
 
@@ -432,6 +441,11 @@
           <label>Expires Date <span class="req">*</span></label>
           <input type="text" id="natops_expires" placeholder="31 MAY 2026" style="text-transform:uppercase" class="date-field">
         </div>
+      </div>
+      <!-- AWF Flight Engineer blurb — shown when AWF rate selected -->
+      <div id="natops_awfBlurb" style="display:none;background:#fff8e6;border:2px solid var(--gold);border-radius:8px;padding:14px;margin-bottom:12px">
+        <label style="font-size:.72rem;font-weight:700;color:var(--navy);text-transform:uppercase;display:block;margin-bottom:6px">Flight Engineer Additional Remarks <span class="hint">(edit as needed — appended to remarks)</span></label>
+        <textarea id="natops_awfText" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.85rem;resize:vertical"></textarea>
       </div>
       <label style="font-size:.72rem;font-weight:600;color:var(--label);text-transform:uppercase">Remarks Preview</label>
       <div class="remarks-preview" id="natops_preview"></div>
@@ -650,6 +664,19 @@ $('evaluatorName').addEventListener('blur', e => {
   if (e.target.value.trim()) e.target.value = formatEvalName(e.target.value);
 });
 
+// ===== AWF RATE DETECTION =====
+const AWF_RATES = ['AWFCS','AWFC','AWF1','AWF2','AWF3','AWFAN'];
+const AWF_BLURB_DEFAULT = 'Air Refueling, APU/LOW/HIGH Power Turn Operator, E-6B Plane Captain, and JQR qualifier per the provisions set forth in NATOPS and OPNAVINST 3710.7 series.';
+function updateAwfBlurb() {
+  const rank = val('rank');
+  const isAwf = AWF_RATES.includes(rank);
+  $('natops_awfBlurb').style.display = isAwf ? 'block' : 'none';
+  if (isAwf && !$('natops_awfText').value.trim()) {
+    $('natops_awfText').value = AWF_BLURB_DEFAULT;
+  }
+}
+$('rank').addEventListener('change', updateAwfBlurb);
+
 // Grade auto-format: 4 → 4.0 on blur
 function formatGrade(str) {
   const s = str.trim();
@@ -812,8 +839,13 @@ function buildNatopsRemarks() {
 
   let txt = `${rank} ${last} was administered an ${p} NATOPS evaluation for the position of ${pos} IAW CNAF M-3710.7 series, E-6B NATOPS Flight Manuals, and current local instructions. Member demonstrated ${k} knowledge of standard operating procedures, aircraft/systems capabilities and limitations. The evaluation emphasized those areas common to flight safety equipment, normal/abnormal operations, emergency procedures, maintenance, egress procedures, and crew resource management. ${rank} ${last} performed required procedures ${m} manner with ${d} deficiencies and is ${q} to perform the duties of an E-6B ${pos}. `;
   txt += `\n\nConducted CRM flight evaluation per ${CRM_INSTRUCTION}.`;
+  // AWF Flight Engineer blurb
+  const awfText = val('natops_awfText');
+  if (AWF_RATES.includes(val('rank')) && awfText) txt += `\n\n${awfText}`;
   if (condH) { txt += `\n\n${condH}`; if (condD) txt += `\n${condD}`; }
   if (desigR) { txt += `\n\n${desigR}`; if (desigA) txt += ` ${desigA}`; }
+  // Ground event (Note 4)
+  if (val('natops_groundEvent') === 'yes') txt += `\nEvaluation conducted as ground event.`;
   return txt;
 }
 
