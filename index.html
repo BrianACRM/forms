@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VQ-7 Checkride Paperwork Generator</title>
+<script src="jszip.min.js"></script>
+<script src="FileSaver.min.js"></script>
+<style>
+  :root { --navy:#003366; --navy-light:#004080; --gold:#c5a44e; --bg:#f4f6f8; --card:#fff; --border:#d0d5dd; --text:#1a1a1a; --label:#344054; --danger:#b42318; --success:#067647; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+  header{background:var(--navy);color:#fff;padding:20px 0;text-align:center;border-bottom:4px solid var(--gold)}
+  header h1{font-size:1.5rem;font-weight:700;letter-spacing:.5px}
+  header p{font-size:.85rem;opacity:.8;margin-top:4px}
+  .container{max-width:960px;margin:0 auto;padding:24px 16px 60px}
+
+  .form-selector{background:var(--card);border-radius:10px;padding:20px 24px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .form-selector h2{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--navy);margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid var(--gold)}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .form-check{position:relative}
+  .form-check input{display:none}
+  .form-check label{display:block;padding:12px 16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;font-size:.88rem;font-weight:600}
+  .form-check label:hover{border-color:var(--navy-light);background:#f0f4f8}
+  .form-check input:checked+label{border-color:var(--navy);background:#e0e9f5;color:var(--navy)}
+  .form-check label small{display:block;font-weight:400;font-size:.75rem;color:#667085;margin-top:2px}
+  .badge-coming{display:inline-block;font-size:.6rem;background:#eee;color:#888;padding:1px 6px;border-radius:8px;vertical-align:middle;margin-left:6px;text-transform:uppercase;font-weight:700}
+
+  .section{background:var(--card);border-radius:10px;padding:24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .section-title{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--navy);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--gold)}
+  .form-row{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+  .form-group{flex:1;min-width:130px}
+  .form-group.w2{flex:2;min-width:200px}
+  .form-group.w3{flex:3}
+  .form-group.w-fixed{flex:0 0 100px;min-width:100px}
+  .form-group label{display:block;font-size:.72rem;font-weight:600;color:var(--label);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+  .form-group label .req{color:var(--danger)}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:.9rem;font-family:inherit;transition:border-color .2s}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,51,102,.1)}
+  .form-group input.invalid,.form-group select.invalid{border-color:var(--danger);background:#fef3f2}
+
+  .grade-table{width:100%;border-collapse:collapse;margin-top:8px;margin-bottom:14px}
+  .grade-table th,.grade-table td{padding:8px 10px;border:1px solid var(--border);font-size:.85rem;text-align:center}
+  .grade-table th{background:#e8eef5;font-weight:600;color:var(--navy);font-size:.72rem;text-transform:uppercase}
+  .grade-table td:first-child{text-align:left;font-weight:500}
+  .grade-table input[type="text"]{width:100%;border:1px solid transparent;padding:4px 6px;font-size:.85rem;text-align:center;border-radius:4px;font-family:inherit}
+  .grade-table input[type="text"]:focus{border-color:var(--navy);outline:none}
+  .grade-table select{border:1px solid transparent;font-size:.82rem;padding:2px 4px;border-radius:4px;font-family:inherit;cursor:pointer}
+  .grade-table select:focus{border-color:var(--navy);outline:none}
+
+  /* Per-form card styling */
+  .form-card{background:var(--card);border-radius:10px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden;display:none;border:2px solid var(--navy)}
+  .form-card.active{display:block}
+  .form-card-header{background:var(--navy);color:#fff;padding:12px 20px;font-size:.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:10px}
+  .form-card-header .form-badge{background:var(--gold);color:var(--navy);padding:2px 10px;border-radius:12px;font-size:.72rem;font-weight:700}
+  .form-card-body{padding:20px 24px}
+  .form-card-body .form-row:last-child{margin-bottom:0}
+
+  .remarks-preview{background:#f9fafb;border:1px solid var(--border);border-radius:6px;padding:14px;margin-top:8px;font-family:'Courier New',monospace;font-size:.76rem;line-height:1.7;color:#333;white-space:pre-wrap;max-height:180px;overflow-y:auto}
+
+  .btn-generate{display:block;width:100%;padding:16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:1.1rem;font-weight:700;cursor:pointer;transition:background .2s;letter-spacing:.5px}
+  .btn-generate:hover{background:var(--navy-light)}
+  .btn-generate:disabled{background:#98a2b3;cursor:not-allowed}
+  .error-banner{display:none;background:#fef3f2;border:1px solid #fecdca;color:var(--danger);padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.85rem;font-weight:500}
+  .error-banner.show{display:block}
+  .success-banner{display:none;background:#ecfdf3;border:1px solid #abefc6;color:var(--success);padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.85rem;font-weight:500}
+  .success-banner.show{display:block}
+  .none-selected-msg{text-align:center;color:#888;padding:40px;font-style:italic}
+  .hint{font-size:.7rem;color:#888;font-weight:400;text-transform:none;letter-spacing:0}
+  .divider{border:none;border-top:1px dashed var(--border);margin:16px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VQ-7 CHECKRIDE PAPERWORK GENERATOR</h1>
+  <p>Select forms, fill in once, export all</p>
+</header>
+
+<div class="container">
+
+  <!-- ====== FORM TYPE SELECTOR ====== -->
+  <div class="form-selector">
+    <h2>Select Required Forms</h2>
+    <div class="form-grid">
+      <div class="form-check">
+        <input type="checkbox" id="chk_natops" value="natops">
+        <label for="chk_natops">NATOPS Evaluation<small>OPNAV 3710/7</small></label>
+      </div>
+      <div class="form-check">
+        <input type="checkbox" id="chk_arp" value="arp">
+        <label for="chk_arp">ARP<small>Air Refueling Pilot</small></label>
+      </div>
+      <div class="form-check">
+        <input type="checkbox" id="chk_instrument" value="instrument" disabled>
+        <label for="chk_instrument" style="opacity:.5">Instrument Check <span class="badge-coming">Coming</span><small>Instrument Flight Eval</small></label>
+      </div>
+      <div class="form-check">
+        <input type="checkbox" id="chk_designation" value="designation" disabled>
+        <label for="chk_designation" style="opacity:.5">Designation Letter <span class="badge-coming">Coming</span><small>Position Designation</small></label>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainForm" style="display:none">
+  <div id="errorBanner" class="error-banner"></div>
+  <div id="successBanner" class="success-banner"></div>
+
+  <!-- ====== PERSONNEL ====== -->
+  <div class="section">
+    <div class="section-title">Personnel Information</div>
+    <div class="form-row">
+      <div class="form-group w2">
+        <label>Last Name <span class="req">*</span> <span class="hint">(auto UPPERCASE)</span></label>
+        <input type="text" id="lastName" placeholder="BYRD" style="text-transform:uppercase">
+      </div>
+      <div class="form-group w2">
+        <label>First Name <span class="req">*</span> <span class="hint">(auto First Capital)</span></label>
+        <input type="text" id="firstName" placeholder="Brian" style="text-transform:capitalize">
+      </div>
+      <div class="form-group w-fixed">
+        <label>MI <span class="req">*</span></label>
+        <input type="text" id="middleInit" maxlength="1" placeholder="A" style="text-transform:uppercase">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Rank/Rate <span class="req">*</span></label>
+        <select id="rank">
+          <option value="">-- Select --</option>
+          <optgroup label="Officer">
+            <option value="CAPT">CAPT</option>
+            <option value="CDR">CDR</option>
+            <option value="LCDR">LCDR</option>
+            <option value="LT">LT</option>
+            <option value="LTJG">LTJG</option>
+            <option value="ENS">ENS</option>
+          </optgroup>
+          <optgroup label="Warrant Officer">
+            <option value="CWO4">CWO4</option>
+            <option value="CWO3">CWO3</option>
+            <option value="CWO2">CWO2</option>
+          </optgroup>
+          <optgroup label="Enlisted">
+            <option value="MCPO">MCPO</option>
+            <option value="AWVCS">AWVCS</option>
+            <option value="AWVC">AWVC</option>
+            <option value="AWV1">AWV1</option>
+            <option value="AWV2">AWV2</option>
+            <option value="AWV3">AWV3</option>
+            <option value="AWVAN">AWVAN</option>
+            <option value="AWFCS">AWFCS</option>
+            <option value="AWFC">AWFC</option>
+            <option value="AWF1">AWF1</option>
+            <option value="AWF2">AWF2</option>
+            <option value="AWF3">AWF3</option>
+            <option value="AWFAN">AWFAN</option>
+          </optgroup>
+          <optgroup label="Other">
+            <option value="CIV">CIV</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Designator</label>
+        <select id="designator">
+          <option value="">None</option>
+          <option value="(NAC)">(NAC)</option>
+          <option value="(SW)">(SW)</option>
+          <option value="(AW)">(AW)</option>
+          <option value="(NAC/AW)">(NAC/AW)</option>
+          <option value="(NAC/SW)">(NAC/SW)</option>
+          <option value="(NAC/SS)">(NAC/SS)</option>
+          <option value="(NAC/AW/SS)">(NAC/AW/SS)</option>
+          <option value="(NAC/AW/SW)">(NAC/AW/SW)</option>
+          <option value="(AW/SW)">(AW/SW)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>DoD EDIPI <span class="req">*</span></label>
+        <input type="text" id="dodId" placeholder="1234567890" maxlength="10">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Squadron/Unit <span class="req">*</span></label>
+        <select id="squadron">
+          <option value="">-- Select --</option>
+          <option value="STRATCOMMWING ONE">STRATCOMMWING ONE</option>
+          <option value="FAIRECONRON SEVEN">FAIRECONRON SEVEN</option>
+          <option value="FAIRECONRON THREE">FAIRECONRON THREE</option>
+          <option value="FAIRECONRON FOUR">FAIRECONRON FOUR</option>
+          <option value="AIRTEVRON TWO ZERO">AIRTEVRON TWO ZERO</option>
+          <option value="TACAMO WEAPONS SCHOOL">TACAMO WEAPONS SCHOOL</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== SHARED FLIGHT INFO ====== -->
+  <div class="section">
+    <div class="section-title">Flight Information</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Total Pilot/Flight Hours <span class="req">*</span></label>
+        <input type="text" id="totalHours" placeholder="319.9">
+      </div>
+      <div class="form-group">
+        <label>Total Hours in Model <span class="req">*</span></label>
+        <input type="text" id="modelHours" placeholder="185.6">
+      </div>
+      <div class="form-group">
+        <label>Aircraft BUNO <span class="req">*</span></label>
+        <select id="buno">
+          <option value="">-- Select --</option>
+          <optgroup label="Aircraft">
+            <option value="162782">162782</option>
+            <option value="162783">162783</option>
+            <option value="162784">162784</option>
+            <option value="163918">163918</option>
+            <option value="163919">163919</option>
+            <option value="163920">163920</option>
+            <option value="164386">164386</option>
+            <option value="164387">164387</option>
+            <option value="164388">164388</option>
+            <option value="164404">164404</option>
+            <option value="164405">164405</option>
+            <option value="164406">164406</option>
+            <option value="164407">164407</option>
+            <option value="164408">164408</option>
+            <option value="164409">164409</option>
+            <option value="164410">164410</option>
+          </optgroup>
+          <optgroup label="Simulators / Other">
+            <option value="2F144A-1">2F144A-1</option>
+            <option value="2F144A-2">2F144A-2</option>
+            <option value="WST 1">WST 1</option>
+            <option value="WST RO">WST RO</option>
+            <option value="ACFT SIM 3">ACFT SIM 3</option>
+            <option value="ACFT SIM 4">ACFT SIM 4</option>
+            <option value="ACFT SIM 7">ACFT SIM 7</option>
+            <option value="B737">B737</option>
+            <option value="B737 SIM">B737 SIM</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== NATOPS FORM CARD ====== -->
+  <div class="form-card" id="cfg_natops">
+    <div class="form-card-header"><span>NATOPS EVALUATION</span><span class="form-badge">3710/7</span></div>
+    <div class="form-card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Crew Position <span class="req">*</span></label>
+          <select id="natops_position">
+            <option value="">-- Select --</option>
+            <option value="AIRCRAFT COMMANDER">Aircraft Commander</option>
+            <option value="SECOND PILOT">Second Pilot</option>
+            <option value="THIRD PILOT">Third Pilot</option>
+            <option value="FLIGHT ENGINEER">Flight Engineer</option>
+            <option value="SECOND FLIGHT ENGINEER">Second Flight Engineer</option>
+            <option value="ACO">ACO</option>
+            <option value="2ACO">2ACO</option>
+            <option value="REEL OPERATOR">Reel Operator</option>
+            <option value="SECOND REEL OPERATOR">Second Reel Operator</option>
+            <option value="2ACT">2ACT</option>
+            <option value="ACT (P20)">ACT (P20)</option>
+            <option value="ACT (P30)">ACT (P30)</option>
+            <option value="OBSERVER">Observer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Evaluation Period <span class="req">*</span></label>
+          <select id="natops_period">
+            <option value="INITIAL">Initial</option>
+            <option value="ANNUAL">Annual</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date of Last Eval <span class="hint">(or INITIAL)</span></label>
+          <input type="text" id="natops_lastEval" placeholder="INITIAL" class="date-field">
+        </div>
+      </div>
+
+      <!-- Exam Grades -->
+      <table class="grade-table">
+        <thead>
+          <tr><th style="width:30%">Requirement</th><th style="width:25%">Date Completed</th><th style="width:15%">Q</th><th style="width:15%">CQ</th><th style="width:15%">U</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Open Book Examination</td>
+            <td><input type="text" id="natops_obDate" placeholder="12 May 2025" class="date-field"></td>
+            <td><input type="text" id="natops_obGrade" placeholder="4.0" style="width:60px" class="grade-field"></td>
+            <td></td><td></td>
+          </tr>
+          <tr>
+            <td>Closed Book Examination</td>
+            <td><input type="text" id="natops_cbDate" placeholder="12 May 2025" class="date-field"></td>
+            <td><input type="text" id="natops_cbGrade" placeholder="4.0" style="width:60px" class="grade-field"></td>
+            <td></td><td></td>
+          </tr>
+          <tr>
+            <td>Oral Examination</td>
+            <td><input type="text" id="natops_oralDate" placeholder="14 May 2025" class="date-field"></td>
+            <td><select id="natops_oralQ"><option value="Q">Q</option><option value=" "> </option></select></td>
+            <td></td>
+            <td><select id="natops_oralU"><option value=" "> </option><option value="UQ">UQ</option></select></td>
+          </tr>
+          <tr>
+            <td>Evaluation Flight</td>
+            <td><input type="text" id="natops_flightDate" placeholder="14 May 2025" class="date-field"></td>
+            <td><select id="natops_flightQ"><option value="Q">Q</option><option value=" "> </option></select></td>
+            <td></td>
+            <td><select id="natops_flightU"><option value=" "> </option><option value="UQ">UQ</option></select></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Flight Duration <span class="req">*</span></label>
+          <input type="text" id="natops_flightDuration" placeholder="1.5">
+        </div>
+        <div class="form-group">
+          <label>Overall Qual</label>
+          <select id="natops_qualLine">
+            <option value="QUALIFIED/">QUALIFIED/</option>
+            <option value="COND. QUALIFIED/">COND. QUALIFIED/</option>
+            <option value="UNQUALIFIED/">UNQUALIFIED/</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Overall Final Grade <span class="req">*</span></label>
+          <input type="text" id="natops_overallGrade" placeholder="4.00" class="overall-grade-field">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Knowledge</label>
+          <select id="natops_knowledge">
+            <option value="good">Good</option>
+            <option value="excellent">Excellent</option>
+            <option value="fair">Fair</option>
+            <option value="poor">Poor</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Performance Manner</label>
+          <select id="natops_manner">
+            <option value="in a safe and proficient">Safe and Proficient</option>
+            <option value="in an unsafe">Unsafe</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Deficiencies</label>
+          <select id="natops_deficiencies">
+            <option value="no">No</option>
+            <option value="minor">Minor</option>
+            <option value="a few">A Few</option>
+            <option value="major">Major</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Qualification Status</label>
+          <select id="natops_qual">
+            <option value="qualified">Qualified</option>
+            <option value="conditionally qualified">Conditionally Qualified</option>
+            <option value="unqualified">Unqualified</option>
+            <option value="conditionally unqualified">Conditionally Unqualified</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Conditional/Unqual Areas <span class="hint">(if applicable)</span></label>
+          <select id="natops_condHeader">
+            <option value=""> -- N/A --</option>
+            <option value="Conditionally qualified in the following areas:">Conditionally qualified in the following areas:</option>
+            <option value="Conditionally qualified in the following subareas:">Conditionally qualified in the following subareas:</option>
+            <option value="Unqualified in the following areas:">Unqualified in the following areas:</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Areas Detail</label>
+          <input type="text" id="natops_condDetail" placeholder="Describe areas...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Designation Recommendation <span class="hint">(if applicable)</span></label>
+          <select id="natops_desigRec">
+            <option value="">-- N/A --</option>
+            <option value="Recommend this individual be designated">Recommend this individual be designated</option>
+            <option value="Recommend this individual not be designated">Recommend this individual not be designated</option>
+            <option value="Recommend this individual maintain designation">Recommend this individual maintain designation</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Designated As</label>
+          <select id="natops_desigAs">
+            <option value="">-- N/A --</option>
+            <option value="as the NATOPS Evaluator.">NATOPS Evaluator</option>
+            <option value="as the NATOPS Instructor.">NATOPS Instructor</option>
+            <option value="as an Assistant NATOPS Instructor.">Asst NATOPS Instructor</option>
+            <option value="as an Aircraft Commander.">Aircraft Commander</option>
+            <option value="as a Second Pilot">Second Pilot</option>
+            <option value="as a Third Pilot">Third Pilot</option>
+            <option value="as a Flight Engineer.">Flight Engineer</option>
+            <option value="as a Second Flight Engineer.">Second Flight Engineer</option>
+            <option value="as an Airborne Communications Officer.">ACO</option>
+            <option value="as a Second Airborne Communications Officer.">2ACO</option>
+            <option value="as an Airborne Communications Technician (P20).">ACT (P20)</option>
+            <option value="as an Airborne Communications Technician (P30).">ACT (P30)</option>
+            <option value="as a Second Airborne Communications Technician.">2ACT</option>
+            <option value="as a Reel Operator.">Reel Operator</option>
+            <option value="as a Second Reel Operator.">Second Reel Operator</option>
+            <option value="as an Observer.">Observer</option>
+          </select>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expires Date <span class="req">*</span></label>
+          <input type="text" id="natops_expires" placeholder="31 MAY 2026" style="text-transform:uppercase" class="date-field">
+        </div>
+      </div>
+      <label style="font-size:.72rem;font-weight:600;color:var(--label);text-transform:uppercase">Remarks Preview</label>
+      <div class="remarks-preview" id="natops_preview"></div>
+    </div>
+  </div>
+
+  <!-- ====== ARP FORM CARD ====== -->
+  <div class="form-card" id="cfg_arp">
+    <div class="form-card-header"><span>ARP - AIR REFUELING PILOT</span><span class="form-badge">3710/7</span></div>
+    <div class="form-card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Evaluation Period <span class="req">*</span></label>
+          <select id="arp_period">
+            <option value="INITIAL">Initial</option>
+            <option value="ANNUAL">Annual</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date of Last Eval <span class="hint">(or INITIAL)</span></label>
+          <input type="text" id="arp_lastEval" placeholder="INITIAL" class="date-field">
+        </div>
+      </div>
+
+      <!-- Exam Grades -->
+      <table class="grade-table">
+        <thead>
+          <tr><th style="width:30%">Requirement</th><th style="width:25%">Date Completed</th><th style="width:15%">Q</th><th style="width:15%">CQ</th><th style="width:15%">U</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Open Book Examination</td>
+            <td><input type="text" id="arp_obDate" placeholder="12 May 2025" class="date-field"></td>
+            <td><input type="text" id="arp_obGrade" placeholder="4.0" style="width:60px" class="grade-field"></td>
+            <td></td><td></td>
+          </tr>
+          <tr>
+            <td>Closed Book Examination</td>
+            <td><input type="text" id="arp_cbDate" placeholder="12 May 2025" class="date-field"></td>
+            <td><input type="text" id="arp_cbGrade" placeholder="4.0" style="width:60px" class="grade-field"></td>
+            <td></td><td></td>
+          </tr>
+          <tr>
+            <td>Oral Examination</td>
+            <td><input type="text" id="arp_oralDate" placeholder="14 May 2025" class="date-field"></td>
+            <td><select id="arp_oralQ"><option value="Q">Q</option><option value=" "> </option></select></td>
+            <td></td>
+            <td><select id="arp_oralU"><option value=" "> </option><option value="UQ">UQ</option></select></td>
+          </tr>
+          <tr>
+            <td>Air Refueling</td>
+            <td><input type="text" id="arp_flightDate" placeholder="14 May 2025" class="date-field"></td>
+            <td><select id="arp_flightQ"><option value="Q">Q</option><option value=" "> </option></select></td>
+            <td></td>
+            <td><select id="arp_flightU"><option value=" "> </option><option value="UQ">UQ</option></select></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Flight Duration <span class="req">*</span></label>
+          <input type="text" id="arp_flightDuration" placeholder="2.5">
+        </div>
+        <div class="form-group">
+          <label>Overall Qual</label>
+          <select id="arp_qualLine">
+            <option value="QUALIFIED/">QUALIFIED/</option>
+            <option value="COND. QUALIFIED/">COND. QUALIFIED/</option>
+            <option value="UNQUALIFIED/">UNQUALIFIED/</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Overall Final Grade <span class="req">*</span></label>
+          <input type="text" id="arp_overallGrade" placeholder="4.00" class="overall-grade-field">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Knowledge</label>
+          <select id="arp_knowledge">
+            <option value="good">Good</option>
+            <option value="excellent">Excellent</option>
+            <option value="fair">Fair</option>
+            <option value="poor">Poor</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Performance Manner</label>
+          <select id="arp_manner">
+            <option value="in a safe and proficient">Safe and Proficient</option>
+            <option value="in an unsafe">Unsafe</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Deficiencies</label>
+          <select id="arp_deficiencies">
+            <option value="no">No</option>
+            <option value="minor">Minor</option>
+            <option value="a few">A Few</option>
+            <option value="major">Major</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Qualification Status</label>
+          <select id="arp_qual">
+            <option value="qualified">Qualified</option>
+            <option value="conditionally qualified">Conditionally Qualified</option>
+            <option value="unqualified">Unqualified</option>
+            <option value="conditionally unqualified">Conditionally Unqualified</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Conditional/Unqual Areas <span class="hint">(if applicable)</span></label>
+          <select id="arp_condHeader">
+            <option value="">-- N/A --</option>
+            <option value="Conditionally qualified in the following areas:">Conditionally qualified in the following areas:</option>
+            <option value="Conditionally qualified in the following subareas:">Conditionally qualified in the following subareas:</option>
+            <option value="Unqualified in the following areas:">Unqualified in the following areas:</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Areas Detail</label>
+          <input type="text" id="arp_condDetail" placeholder="Describe areas...">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expires Date <span class="req">*</span></label>
+          <input type="text" id="arp_expires" placeholder="31 MAY 2026" style="text-transform:uppercase" class="date-field">
+        </div>
+      </div>
+      <label style="font-size:.72rem;font-weight:600;color:var(--label);text-transform:uppercase">Remarks Preview</label>
+      <div class="remarks-preview" id="arp_preview"></div>
+    </div>
+  </div>
+
+  <!-- ====== SIGNATURES ====== -->
+  <div class="section">
+    <div class="section-title">Signatures</div>
+    <div class="form-row">
+      <div class="form-group w2">
+        <label>Evaluator/Instructor (Grade + Name) <span class="req">*</span> <span class="hint">(auto-formats: LT S. H. SMITH)</span></label>
+        <input type="text" id="evaluatorName" placeholder="LT S. H. SMITH" style="text-transform:uppercase">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group w2">
+        <label>Evaluee (auto-generated from personnel info)</label>
+        <input type="text" id="evalueeName" readonly style="background:#f0f2f5">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Check if Continued on Reverse</label>
+        <select id="continued"><option value="no">No</option><option value="yes">Yes</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group w2">
+        <label>Unit Commander</label>
+        <select id="commanderName">
+          <option value="">-- Select --</option>
+          <option value="CDR C. R. HOFFMAN">CDR C. R. HOFFMAN</option>
+          <option value="CDR C. K. TURNER">CDR C. K. TURNER</option>
+          <option value="CDR N. R. WHITEMAN">CDR N. R. WHITEMAN</option>
+          <option value="CDR M. J. HAYS">CDR M. J. HAYS</option>
+          <option value="CAPT D. M. GARDNER">CAPT D. M. GARDNER</option>
+          <option value="CDR R. A. HERRERA">CDR R. A. HERRERA</option>
+          <option value="CDR J. P. CULLITON">CDR J. P. CULLITON</option>
+          <option value="CDR A. G. SHEMON">CDR A. G. SHEMON</option>
+          <option value="CDR J. M. CINCOTTA">CDR J. M. CINCOTTA</option>
+          <option value="CAPT Z. R. BROWN">CAPT Z. R. BROWN</option>
+          <option value="CDR T. L. BOSTON">CDR T. L. BOSTON</option>
+          <option value="CDR B. W. BLACK">CDR B. W. BLACK</option>
+          <option value="CDR N. S. ELLIOTT">CDR N. S. ELLIOTT</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-generate" id="generateBtn" onclick="generateAll()">GENERATE ALL SELECTED FORMS</button>
+  </div>
+
+  <div id="noneSelected" class="none-selected-msg">Select one or more form types above to get started.</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const val = id => ($(id) ? $(id).value.trim() : '');
+
+// ===== FORMATTING =====
+$('lastName').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase(); });
+$('firstName').addEventListener('input', e => {
+  const v = e.target.value;
+  if (v.length > 0) e.target.value = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+});
+$('middleInit').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase(); });
+
+// Evaluator name: auto-format on blur — uppercase + periods after single-letter initials
+function formatEvalName(str) {
+  return str.toUpperCase().trim().split(/\s+/).map(w => {
+    if (w.length === 1 && /^[A-Z]$/.test(w)) return w + '.';
+    return w;
+  }).join(' ');
+}
+$('evaluatorName').addEventListener('blur', e => {
+  if (e.target.value.trim()) e.target.value = formatEvalName(e.target.value);
+});
+
+// Grade auto-format: 4 → 4.0 on blur
+function formatGrade(str) {
+  const s = str.trim();
+  if (!s) return s;
+  const num = parseFloat(s);
+  if (!isNaN(num) && /^\d+\.?\d*$/.test(s)) return num.toFixed(1);
+  return s;
+}
+function formatOverallGrade(str) {
+  const s = str.trim();
+  if (!s) return s;
+  const num = parseFloat(s);
+  if (!isNaN(num) && /^\d+\.?\d*$/.test(s)) return num.toFixed(2);
+  return s;
+}
+document.querySelectorAll('.grade-field').forEach(el => {
+  el.addEventListener('blur', () => { if (el.value.trim()) el.value = formatGrade(el.value); });
+});
+document.querySelectorAll('.overall-grade-field').forEach(el => {
+  el.addEventListener('blur', () => { if (el.value.trim()) el.value = formatOverallGrade(el.value); });
+});
+
+// ===== DATE FORMATTING =====
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_MAP = {};
+['january','february','march','april','may','june','july','august','september','october','november','december'].forEach((m,i) => {
+  MONTH_MAP[m] = i; MONTH_MAP[m.substring(0,3)] = i;
+});
+
+function formatDate(str) {
+  if (!str) return '';
+  str = str.trim();
+  if (str.toUpperCase() === 'INITIAL') return 'INITIAL';
+  // Handle concatenated formats like "14may25", "14MAY2025", "14may2025"
+  const concat = str.match(/^(\d{1,2})([a-zA-Z]{3,9})(\d{2,4})$/);
+  if (concat) {
+    const day = parseInt(concat[1]);
+    const mon = MONTH_MAP[concat[2].toLowerCase()];
+    let year = parseInt(concat[3]);
+    if (year < 100) year += 2000;
+    if (!isNaN(day) && mon >= 0 && mon <= 11 && !isNaN(year)) {
+      return day + ' ' + MONTH_NAMES[mon].toUpperCase() + ' ' + year;
+    }
+  }
+  const parts = str.split(/[\s/.-]+/);
+  if (parts.length === 3) {
+    let day, mon, year;
+    if (MONTH_MAP[parts[0].toLowerCase()] !== undefined) {
+      mon = MONTH_MAP[parts[0].toLowerCase()]; day = parseInt(parts[1]); year = parseInt(parts[2]);
+    } else {
+      day = parseInt(parts[0]);
+      mon = MONTH_MAP[parts[1].toLowerCase()];
+      if (mon === undefined) mon = parseInt(parts[1]) - 1;
+      year = parseInt(parts[2]);
+    }
+    if (year < 100) year += 2000;
+    if (!isNaN(day) && mon >= 0 && mon <= 11 && !isNaN(year)) {
+      return day + ' ' + MONTH_NAMES[mon].toUpperCase() + ' ' + year;
+    }
+  }
+  return str;
+}
+
+// Auto-format all date fields on blur
+document.querySelectorAll('.date-field').forEach(el => {
+  el.addEventListener('blur', () => { if (el.value.trim()) el.value = formatDate(el.value); });
+});
+
+// ===== AUTO-CALCULATE EXPIRES =====
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+function calcExpires(dateStr) {
+  const parts = dateStr.trim().split(/\s+/);
+  if (parts.length !== 3) return '';
+  const mon = parts[1].toUpperCase().substring(0, 3);
+  const year = parseInt(parts[2]);
+  const monIdx = MONTHS.indexOf(mon);
+  if (monIdx < 0 || isNaN(year)) return '';
+  const nextYear = year + 1;
+  const lastDay = new Date(nextYear, monIdx + 1, 0).getDate();
+  return lastDay + ' ' + MONTHS[monIdx] + ' ' + nextYear;
+}
+
+// Per-form: flight date → auto-fill expires
+['natops','arp'].forEach(form => {
+  const fd = $(form + '_flightDate');
+  if (fd) {
+    fd.addEventListener('change', () => {
+      const exp = calcExpires(formatDate(fd.value));
+      const expField = $(form + '_expires');
+      if (exp && expField && !expField.value.trim()) expField.value = exp;
+    });
+  }
+});
+
+// ===== FORM VISIBILITY =====
+const formCheckboxes = document.querySelectorAll('.form-selector input[type="checkbox"]');
+
+// Copy NATOPS values to ARP (for shared fields) when ARP is first checked
+function copyNatopsToArp() {
+  const fields = ['obDate','obGrade','cbDate','cbGrade','oralDate','flightDate','flightDuration','overallGrade','lastEval'];
+  fields.forEach(f => {
+    const src = $('natops_' + f);
+    const dst = $('arp_' + f);
+    if (src && dst && !dst.value.trim() && src.value.trim()) dst.value = src.value;
+  });
+  // Copy selects if at default
+  const selects = ['oralQ','oralU','flightQ','flightU','qualLine','period'];
+  selects.forEach(f => {
+    const src = $('natops_' + f);
+    const dst = $('arp_' + f);
+    if (src && dst) dst.value = src.value;
+  });
+  // Auto-fill expires if empty
+  const arpExp = $('arp_expires');
+  const natExp = $('natops_expires');
+  if (natExp && arpExp && !arpExp.value.trim() && natExp.value.trim()) arpExp.value = natExp.value;
+}
+
+function updateFormVisibility() {
+  const any = [...formCheckboxes].some(c => c.checked && !c.disabled);
+  $('mainForm').style.display = any ? '' : 'none';
+  $('noneSelected').style.display = any ? 'none' : '';
+  ['natops','arp'].forEach(t => {
+    const cfg = $('cfg_'+t);
+    if (cfg) cfg.classList.toggle('active', $('chk_'+t).checked);
+  });
+  updateAllPreviews();
+}
+
+let arpWasCopied = false;
+formCheckboxes.forEach(c => c.addEventListener('change', () => {
+  // When ARP is checked and NATOPS has values, auto-copy
+  if (c.id === 'chk_arp' && c.checked && $('chk_natops').checked && !arpWasCopied) {
+    setTimeout(() => { copyNatopsToArp(); arpWasCopied = true; }, 50);
+  }
+  updateFormVisibility();
+}));
+
+// ===== AUTO EVALUEE NAME =====
+function updateEvalueeName() {
+  const rank = val('rank'), rawFirst = val('firstName'), first = rawFirst ? rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1).toLowerCase() : '', mi = val('middleInit').toUpperCase(), last = val('lastName').toUpperCase();
+  if (rank && first && last) {
+    $('evalueeName').value = rank + ' ' + first.charAt(0).toUpperCase() + '.' + (mi ? ' ' + mi + '.' : '') + ' ' + last;
+  } else { $('evalueeName').value = ''; }
+}
+['rank','firstName','middleInit','lastName','designator'].forEach(id => {
+  $(id).addEventListener('input', () => { updateEvalueeName(); updateAllPreviews(); });
+  $(id).addEventListener('change', () => { updateEvalueeName(); updateAllPreviews(); });
+});
+
+// ===== REMARKS BUILDERS =====
+const CRM_INSTRUCTION = 'COMNAVAIRFORINST 1542.7 Series';
+
+function buildNatopsRemarks() {
+  const rank = val('rank') || '[RANK]', last = val('lastName').toUpperCase() || '[LAST]';
+  const pos = val('natops_position') || '[POSITION]';
+  const p = val('natops_period'), k = val('natops_knowledge'), m = val('natops_manner'), d = val('natops_deficiencies'), q = val('natops_qual');
+  const condH = val('natops_condHeader'), condD = val('natops_condDetail');
+  const desigR = val('natops_desigRec'), desigA = val('natops_desigAs');
+
+  let txt = `${rank} ${last} was administered an ${p} NATOPS evaluation for the position of ${pos} IAW CNAF M-3710.7 series, E-6B NATOPS Flight Manuals, and current local instructions. Member demonstrated ${k} knowledge of standard operating procedures, aircraft/systems capabilities and limitations. The evaluation emphasized those areas common to flight safety equipment, normal/abnormal operations, emergency procedures, maintenance, egress procedures, and crew resource management. ${rank} ${last} performed required procedures ${m} manner with ${d} deficiencies and is ${q} to perform the duties of an E-6B ${pos}. `;
+  txt += `\n\nConducted CRM flight evaluation per ${CRM_INSTRUCTION}.`;
+  if (condH) { txt += `\n\n${condH}`; if (condD) txt += `\n${condD}`; }
+  if (desigR) { txt += `\n\n${desigR}`; if (desigA) txt += ` ${desigA}`; }
+  return txt;
+}
+
+function buildArpRemarks() {
+  const rank = val('rank') || '[RANK]', last = val('lastName').toUpperCase() || '[LAST]';
+  const p = val('arp_period'), k = val('arp_knowledge'), m = val('arp_manner'), d = val('arp_deficiencies'), q = val('arp_qual');
+  const condH = val('arp_condHeader'), condD = val('arp_condDetail');
+
+  let txt = `${rank} ${last} was administered an ${p} air refueling evaluation for the position of Air Refueling Pilot in accordance with the E-6B NATOPS Flight manual, NATO ATP-56C, CNAF M-3710.7 series, and current local instructions.  Member demonstrated ${k} knowledge of air refueling standard operating procedures, aircraft/systems capabilities and limitations of the E-6B.  The evaluation emphasized those areas common to flight safety equipment, normal/abnormal operations, emergency procedures, maintenance, egress procedures, and crew resource management. ${rank} ${last} performed required procedures ${m} manner with ${d} deficiencies and is ${q} to perform the duties of an Air Refueling Pilot. `;
+  txt += `\n\nConducted CRM flight evaluation per ${CRM_INSTRUCTION}.`;
+  if (condH) { txt += `\n\n${condH}`; if (condD) txt += `\n${condD}`; }
+  return txt;
+}
+
+function updateAllPreviews() {
+  if ($('chk_natops').checked) $('natops_preview').textContent = buildNatopsRemarks();
+  if ($('chk_arp').checked) $('arp_preview').textContent = buildArpRemarks();
+}
+
+// Listen to all fields for preview updates
+document.querySelectorAll('#mainForm select, #mainForm input').forEach(el => {
+  el.addEventListener('input', updateAllPreviews);
+  el.addEventListener('change', updateAllPreviews);
+});
+
+// ===== VALIDATION =====
+function validate() {
+  const errors = [];
+  const check = (id, label) => { const e=$(id); if(!e)return; if(!e.value.trim()){errors.push(label);e.classList.add('invalid')}else{e.classList.remove('invalid')} };
+  check('lastName','Last Name'); check('firstName','First Name'); check('middleInit','MI');
+  check('rank','Rank'); check('dodId','DoD EDIPI'); check('squadron','Squadron/Unit');
+  check('totalHours','Total Hours'); check('modelHours','Model Hours');
+  check('buno','Aircraft BUNO');
+  check('evaluatorName','Evaluator Name');
+  if ($('chk_natops').checked) {
+    check('natops_position','NATOPS Position');
+    check('natops_obDate','NATOPS OB Date'); check('natops_obGrade','NATOPS OB Grade');
+    check('natops_cbDate','NATOPS CB Date'); check('natops_cbGrade','NATOPS CB Grade');
+    check('natops_oralDate','NATOPS Oral Date'); check('natops_flightDate','NATOPS Flight Date');
+    check('natops_flightDuration','NATOPS Flight Duration'); check('natops_overallGrade','NATOPS Overall Grade');
+    check('natops_expires','NATOPS Expires');
+  }
+  if ($('chk_arp').checked) {
+    check('arp_obDate','ARP OB Date'); check('arp_obGrade','ARP OB Grade');
+    check('arp_cbDate','ARP CB Date'); check('arp_cbGrade','ARP CB Grade');
+    check('arp_oralDate','ARP Oral Date'); check('arp_flightDate','ARP Flight Date');
+    check('arp_flightDuration','ARP Flight Duration'); check('arp_overallGrade','ARP Overall Grade');
+    check('arp_expires','ARP Expires');
+  }
+  if (errors.length) {
+    $('errorBanner').innerHTML = '<strong>Missing:</strong> ' + errors.join(', ');
+    $('errorBanner').classList.add('show'); $('successBanner').classList.remove('show');
+    return false;
+  }
+  $('errorBanner').classList.remove('show'); return true;
+}
+
+// ===== TEMPLATE ENGINE =====
+const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+function parseFormFields(xmlDoc) {
+  const fields = [];
+  const allRuns = xmlDoc.getElementsByTagNameNS(W, 'r');
+  let currentField = null;
+  let afterSeparate = false;
+  for (let i = 0; i < allRuns.length; i++) {
+    const run = allRuns[i];
+    const fldChar = run.getElementsByTagNameNS(W, 'fldChar')[0];
+    if (fldChar) {
+      const charType = fldChar.getAttribute(W.length ? 'w:fldCharType' : 'fldCharType') || fldChar.getAttributeNS(W, 'fldCharType') || fldChar.getAttribute('w:fldCharType');
+      if (charType === 'begin') {
+        const ffData = fldChar.getElementsByTagNameNS(W, 'ffData')[0];
+        if (ffData) {
+          const nameEl = ffData.getElementsByTagNameNS(W, 'name')[0];
+          const fieldName = nameEl ? (nameEl.getAttributeNS(W, 'val') || nameEl.getAttribute('w:val') || '') : '';
+          const ddList = ffData.getElementsByTagNameNS(W, 'ddList')[0];
+          const textInput = ffData.getElementsByTagNameNS(W, 'textInput')[0];
+          const checkBox = ffData.getElementsByTagNameNS(W, 'checkBox')[0];
+          currentField = { name: fieldName, type: ddList ? 'dropdown' : (checkBox ? 'checkbox' : 'text'), ffData, ddList, checkBox, beginRun: run, separateRun: null, endRun: null, valueRuns: [] };
+          afterSeparate = false;
+        }
+      } else if (charType === 'separate' && currentField) {
+        currentField.separateRun = run; afterSeparate = true;
+      } else if (charType === 'end' && currentField) {
+        currentField.endRun = run; afterSeparate = false; fields.push(currentField); currentField = null;
+      }
+    } else if (afterSeparate && currentField) {
+      currentField.valueRuns.push(run);
+    }
+  }
+  return fields;
+}
+
+function setTextField(field, value) {
+  if (!field.separateRun) return;
+  for (let i = 1; i < field.valueRuns.length; i++) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
+  if (field.valueRuns.length > 0) {
+    let tEl = field.valueRuns[0].getElementsByTagNameNS(W, 't')[0];
+    if (!tEl) { tEl = field.valueRuns[0].ownerDocument.createElementNS(W, 'w:t'); field.valueRuns[0].appendChild(tEl); }
+    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
+  } else {
+    const doc = field.separateRun.ownerDocument;
+    const newRun = doc.createElementNS(W, 'w:r');
+    const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
+    if (rPr) newRun.appendChild(rPr.cloneNode(true));
+    const tEl = doc.createElementNS(W, 'w:t');
+    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
+    newRun.appendChild(tEl);
+    field.endRun.parentNode.insertBefore(newRun, field.endRun);
+  }
+}
+
+function setDropdownField(field, selectedIndex) {
+  if (!field.ddList) return;
+  let resultEl = field.ddList.getElementsByTagNameNS(W, 'result')[0];
+  if (!resultEl) { resultEl = field.ddList.ownerDocument.createElementNS(W, 'w:result'); field.ddList.insertBefore(resultEl, field.ddList.firstChild); }
+  resultEl.setAttributeNS(W, 'w:val', String(selectedIndex));
+}
+
+function setCheckboxField(field, checked) {
+  if (!field.checkBox) return;
+  let checkedEl = field.checkBox.getElementsByTagNameNS(W, 'checked')[0];
+  if (!checkedEl) { checkedEl = field.checkBox.ownerDocument.createElementNS(W, 'w:checked'); field.checkBox.appendChild(checkedEl); }
+  checkedEl.setAttributeNS(W, 'w:val', checked ? '1' : '0');
+}
+
+function getDropdownOption(field, index) {
+  if (!field.ddList) return '';
+  const entries = field.ddList.getElementsByTagNameNS(W, 'listEntry');
+  if (index >= 0 && index < entries.length) return entries[index].getAttributeNS(W, 'val') || entries[index].getAttribute('w:val') || '';
+  return '';
+}
+
+function findDropdownIndex(field, value) {
+  if (!field.ddList) return 0;
+  const entries = field.ddList.getElementsByTagNameNS(W, 'listEntry');
+  for (let i = 0; i < entries.length; i++) {
+    const v = entries[i].getAttributeNS(W, 'val') || entries[i].getAttribute('w:val') || '';
+    if (v === value) return i;
+  }
+  return 0;
+}
+
+function updateRefFields(xmlDoc, fieldValues) {
+  const fldSimples = xmlDoc.getElementsByTagNameNS(W, 'fldSimple');
+  for (let i = 0; i < fldSimples.length; i++) {
+    const instr = fldSimples[i].getAttributeNS(W, 'instr') || fldSimples[i].getAttribute('w:instr') || '';
+    const match = instr.match(/REF\s+(\w+)/);
+    if (match && fieldValues[match[1]] !== undefined) {
+      const runs = fldSimples[i].getElementsByTagNameNS(W, 'r');
+      if (runs.length > 0) { let tEl = runs[0].getElementsByTagNameNS(W, 't')[0]; if (tEl) tEl.textContent = fieldValues[match[1]]; }
+    }
+  }
+  const allRuns = xmlDoc.getElementsByTagNameNS(W, 'r');
+  let inRefField = false, refName = '', refSeparate = false;
+  for (let i = 0; i < allRuns.length; i++) {
+    const run = allRuns[i];
+    const fldChar = run.getElementsByTagNameNS(W, 'fldChar')[0];
+    const instrText = run.getElementsByTagNameNS(W, 'instrText')[0];
+    if (fldChar) {
+      const ct = fldChar.getAttributeNS(W, 'fldCharType') || fldChar.getAttribute('w:fldCharType');
+      if (ct === 'begin' && !fldChar.getElementsByTagNameNS(W, 'ffData')[0]) { inRefField = true; refName = ''; refSeparate = false; }
+      else if (ct === 'separate' && inRefField) { refSeparate = true; }
+      else if (ct === 'end' && inRefField) { inRefField = false; refSeparate = false; }
+    } else if (instrText && inRefField) {
+      const txt = instrText.textContent || '';
+      const m = txt.match(/REF\s+(\w+)/);
+      if (m) refName = m[1];
+    } else if (refSeparate && refName && fieldValues[refName] !== undefined) {
+      const tEl = run.getElementsByTagNameNS(W, 't')[0];
+      if (tEl) tEl.textContent = fieldValues[refName];
+      refSeparate = false;
+    }
+  }
+}
+
+async function fillTemplate(masterFile, fieldMap, filename) {
+  const resp = await fetch(masterFile);
+  const buf = await resp.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  let docXml = await zip.file('word/document.xml').async('string');
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(docXml, 'application/xml');
+  const fields = parseFormFields(xmlDoc);
+
+  const byName = {};
+  fields.forEach((f, idx) => { if (f.name) { if (!byName[f.name]) byName[f.name] = f; } f._index = idx; });
+
+  // Identify unnamed fields by position
+  const dd44idx = fields.findIndex(f => f.name === 'Dropdown44');
+  if (dd44idx >= 0 && dd44idx + 1 < fields.length && !fields[dd44idx + 1].name) byName['_designator'] = fields[dd44idx + 1];
+  if (dd44idx >= 0 && dd44idx + 2 < fields.length && !fields[dd44idx + 2].name) byName['_edipi_type'] = fields[dd44idx + 2];
+  if (dd44idx >= 0 && dd44idx + 3 < fields.length) byName['_edipi_num'] = fields[dd44idx + 3];
+  const dd20idx = fields.findIndex(f => f.name === 'Dropdown20');
+  if (dd20idx >= 0 && dd20idx + 1 < fields.length) {
+    const nextF = fields[dd20idx + 1];
+    if (!nextF.name || nextF.name === '') byName['_flightDate'] = nextF;
+  }
+  const dd25idx = fields.findIndex(f => f.name === 'Dropdown25');
+  if (dd25idx >= 0 && dd25idx + 1 < fields.length && !fields[dd25idx + 1].name) byName['_desigAs'] = fields[dd25idx + 1];
+  if (dd25idx >= 0 && dd25idx + 2 < fields.length && !fields[dd25idx + 2].name) byName['_desigFreeText'] = fields[dd25idx + 2];
+
+  // Apply field values
+  const refValues = {};
+  for (const [key, value] of Object.entries(fieldMap)) {
+    const field = byName[key];
+    if (!field) { console.warn('Field not found:', key); continue; }
+    if (field.type === 'text') {
+      setTextField(field, value); refValues[key] = value;
+    } else if (field.type === 'dropdown') {
+      const idx = typeof value === 'number' ? value : findDropdownIndex(field, value);
+      setDropdownField(field, idx);
+      const displayText = getDropdownOption(field, idx);
+      refValues[key] = displayText;
+      if (field.name) refValues[field.name] = displayText;
+    } else if (field.type === 'checkbox') {
+      setCheckboxField(field, value);
+    }
+  }
+
+  updateRefFields(xmlDoc, refValues);
+
+  const serializer = new XMLSerializer();
+  const newXml = serializer.serializeToString(xmlDoc);
+  zip.file('word/document.xml', newXml);
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  saveAs(blob, filename);
+}
+
+// ===== GENERATE =====
+async function generateAll() {
+  if (!validate()) return;
+
+  const lastName = val('lastName').toUpperCase();
+  const rawFirst = val('firstName');
+  const firstName = rawFirst ? rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1).toLowerCase() : '';
+  const mi = val('middleInit').toUpperCase();
+  const rank = val('rank');
+  const desig = val('designator');
+  const evaluatorName = formatEvalName(val('evaluatorName'));
+
+  const tasks = [];
+  const filenames = [];
+
+  if ($('chk_natops').checked) {
+    const pos = val('natops_position');
+    const obDateF = formatDate(val('natops_obDate'));
+    const cbDateF = formatDate(val('natops_cbDate'));
+    const oralDateF = formatDate(val('natops_oralDate'));
+    const flightDateF = formatDate(val('natops_flightDate'));
+    const lastEval = formatDate(val('natops_lastEval'));
+
+    const fields = {
+      'Text40': lastName,
+      'Text52': firstName,
+      'Text46': mi,
+      'Dropdown44': rank,
+      '_designator': desig || '  ',
+      '_edipi_num': val('dodId'),
+      'Dropdown15': val('squadron'),
+      'Text4': val('totalHours'),
+      'Text5': val('modelHours'),
+      'Dropdown41': pos,
+      // Exam dates/grades
+      'Text6': obDateF,
+      'Text13': formatGrade(val('natops_obGrade')),
+      'Text7': cbDateF,
+      'Text12': formatGrade(val('natops_cbGrade')),
+      'Text8': oralDateF,
+      'Dropdown19': val('natops_oralQ').trim() ? 'Q' : ' ',
+      'Dropdown20': val('natops_oralU').trim() ? 'UQ' : ' ',
+      '_flightDate': flightDateF,
+      'Dropdown23': val('natops_flightQ').trim() ? 'Q' : ' ',
+      'Dropdown24': val('natops_flightU').trim() ? 'UQ' : ' ',
+      'Text14': val('natops_flightDuration'),
+      'Dropdown9': val('buno'),
+      'Text36': formatOverallGrade(val('natops_overallGrade')),
+      // Remarks dropdowns
+      'Dropdown12': val('natops_qualLine'),
+      'Dropdown8': val('natops_period') === 'ANNUAL' ? 'ANNUAL' : 'INITIAL',
+      'Dropdown1': val('natops_knowledge'),
+      'Dropdown18': val('natops_manner'),
+      'Dropdown10': val('natops_deficiencies'),
+      'Dropdown11': val('natops_qual'),
+      'Dropdown34': val('natops_condHeader') || ' ',
+      'Text45': val('natops_condDetail') || ' ',
+      'Dropdown25': val('natops_desigRec') || '  ',
+      'Text22': val('natops_expires').toUpperCase(),
+      'Check1': val('continued') === 'yes',
+      // Signatures
+      'Text24': evaluatorName,
+      'Text53': rank + ' ' + firstName.charAt(0).toUpperCase() + '.' + (mi ? ' ' + mi + '.' : '') + ' ' + lastName,
+      'Dropdown14': val('commanderName'),
+      'Text55': ' ',
+    };
+    // Last eval
+    if (lastEval === 'INITIAL') {
+      fields['Dropdown28'] = 'INITIAL';
+      fields['Text43'] = '';
+    } else {
+      fields['Dropdown28'] = '  ';
+      fields['Text43'] = lastEval;
+    }
+    // Designation
+    if (val('natops_desigAs')) fields['_desigAs'] = val('natops_desigAs');
+
+    const fn = `3710 ${pos.replace(/\s+/g,'_')} ${formatDate(val('natops_flightDate')).replace(/\s+/g,'')}.docx`;
+    filenames.push(fn);
+    tasks.push(fillTemplate('Master 3710-Form.docx', fields, fn));
+  }
+
+  if ($('chk_arp').checked) {
+    const obDateF = formatDate(val('arp_obDate'));
+    const cbDateF = formatDate(val('arp_cbDate'));
+    const oralDateF = formatDate(val('arp_oralDate'));
+    const flightDateF = formatDate(val('arp_flightDate'));
+    const lastEval = formatDate(val('arp_lastEval'));
+
+    const fields = {
+      'Text40': lastName,
+      'Text52': firstName,
+      'Text46': mi,
+      'Dropdown44': rank,
+      '_designator': desig || '  ',
+      '_edipi_num': val('dodId'),
+      'Dropdown15': val('squadron'),
+      'Text4': val('totalHours'),
+      'Text5': val('modelHours'),
+      // Exam dates/grades
+      'Text6': obDateF,
+      'Text13': formatGrade(val('arp_obGrade')),
+      'Text7': cbDateF,
+      'Text12': formatGrade(val('arp_cbGrade')),
+      'Text8': oralDateF,
+      'Dropdown19': val('arp_oralQ').trim() ? 'Q' : ' ',
+      'Dropdown20': val('arp_oralU').trim() ? 'UQ' : ' ',
+      '_flightDate': flightDateF,
+      'Dropdown23': val('arp_flightQ').trim() ? 'Q' : ' ',
+      'Dropdown24': val('arp_flightU').trim() ? 'UQ' : ' ',
+      'Text14': val('arp_flightDuration'),
+      'Dropdown9': val('buno'),
+      'Text36': formatOverallGrade(val('arp_overallGrade')),
+      // Remarks dropdowns
+      'Dropdown12': val('arp_qualLine'),
+      'Dropdown8': val('arp_period') === 'ANNUAL' ? 'ANNUAL' : 'INITIAL',
+      'Dropdown1': val('arp_knowledge'),
+      'Dropdown18': val('arp_manner'),
+      'Dropdown10': val('arp_deficiencies'),
+      'Dropdown11': val('arp_qual'),
+      'Dropdown34': val('arp_condHeader') || ' ',
+      'Text45': val('arp_condDetail') || ' ',
+      'Dropdown25': '  ',
+      'Text22': val('arp_expires').toUpperCase(),
+      'Check1': val('continued') === 'yes',
+      // Signatures
+      'Text24': evaluatorName,
+      'Text53': rank + ' ' + firstName.charAt(0).toUpperCase() + '.' + (mi ? ' ' + mi + '.' : '') + ' ' + lastName,
+      'Dropdown14': val('commanderName'),
+      'Text55': ' ',
+    };
+    // Last eval
+    if (lastEval === 'INITIAL') {
+      fields['Dropdown28'] = 'INITIAL';
+      fields['Text43'] = '';
+    } else {
+      fields['Dropdown28'] = '  ';
+      fields['Text43'] = lastEval;
+    }
+
+    const fn = `ARP 3710 ${formatDate(val('arp_flightDate')).replace(/\s+/g,'')}.docx`;
+    filenames.push(fn);
+    tasks.push(fillTemplate('Master ARP 3710 Form (15 MAY 23).docx', fields, fn));
+  }
+
+  $('generateBtn').disabled=true; $('generateBtn').textContent='Generating...';
+  try {
+    for (const task of tasks) { await task; await new Promise(r=>setTimeout(r,500)); }
+    $('successBanner').innerHTML=`<strong>Generated ${filenames.length} form(s):</strong> ` + filenames.join(', ');
+    $('successBanner').classList.add('show'); $('errorBanner').classList.remove('show');
+  } catch(err) {
+    $('errorBanner').innerHTML='<strong>Error:</strong> '+err.message;
+    $('errorBanner').classList.add('show'); console.error(err);
+  }
+  $('generateBtn').disabled=false; $('generateBtn').textContent='GENERATE ALL SELECTED FORMS';
+}
+</script>
+</body>
+</html>
