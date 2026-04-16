@@ -1032,7 +1032,17 @@ async function fillTemplate(masterFile, fieldMap, filename) {
   const fields = parseFormFields(xmlDoc);
 
   const byName = {};
-  fields.forEach((f, idx) => { if (f.name) { if (!byName[f.name]) byName[f.name] = f; } f._index = idx; });
+  const dupeCount = {};
+  fields.forEach((f, idx) => {
+    f._index = idx;
+    if (f.name) {
+      if (!dupeCount[f.name]) { dupeCount[f.name] = 0; }
+      dupeCount[f.name]++;
+      if (dupeCount[f.name] === 1) { byName[f.name] = f; }
+      // Second Text45 = CQ/U detail box (first is CRM free text)
+      if (f.name === 'Text45' && dupeCount[f.name] === 2) { byName['_condDetail'] = f; }
+    }
+  });
 
   // Identify unnamed fields by position
   const dd44idx = fields.findIndex(f => f.name === 'Dropdown44');
@@ -1131,7 +1141,8 @@ async function generateAll() {
       'Dropdown10': val('natops_deficiencies'),
       'Dropdown11': val('natops_qual'),
       'Dropdown34': val('natops_condHeader') || ' ',
-      'Text45': val('natops_condDetail') || ' ',
+      'Text45': ' ',
+      '_condDetail': val('natops_condDetail') || ' ',
       'Dropdown25': val('natops_desigRec') || '  ',
       'Text22': val('natops_expires').toUpperCase(),
       'Check1': val('continued') === 'yes',
