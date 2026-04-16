@@ -1032,17 +1032,16 @@ async function fillTemplate(masterFile, fieldMap, filename) {
   const fields = parseFormFields(xmlDoc);
 
   const byName = {};
-  const dupeCount = {};
   fields.forEach((f, idx) => {
     f._index = idx;
-    if (f.name) {
-      if (!dupeCount[f.name]) { dupeCount[f.name] = 0; }
-      dupeCount[f.name]++;
-      if (dupeCount[f.name] === 1) { byName[f.name] = f; }
-      // Second Text45 = CQ/U detail box (first is CRM free text)
-      if (f.name === 'Text45' && dupeCount[f.name] === 2) { byName['_condDetail'] = f; }
-    }
+    if (f.name) { if (!byName[f.name]) byName[f.name] = f; }
   });
+
+  // Handle duplicate Text45: find the one right after Dropdown34 (CQ/U detail box)
+  const dd34idx = fields.findIndex(f => f.name === 'Dropdown34');
+  if (dd34idx >= 0 && dd34idx + 1 < fields.length && fields[dd34idx + 1].name === 'Text45') {
+    byName['_condDetail'] = fields[dd34idx + 1];
+  }
 
   // Identify unnamed fields by position
   const dd44idx = fields.findIndex(f => f.name === 'Dropdown44');
@@ -1064,7 +1063,11 @@ async function fillTemplate(masterFile, fieldMap, filename) {
     const field = byName[key];
     if (!field) { console.warn('Field not found:', key); continue; }
     if (field.type === 'text') {
-      setTextField(field, value); refValues[key] = value;
+      setTextField(field, value);
+      // Clear default text in ffData so it doesn't show when value is blank
+      const defEl = field.ffData.getElementsByTagNameNS(W, 'default')[0];
+      if (defEl) defEl.setAttributeNS(W, 'w:val', '');
+      refValues[key] = value;
     } else if (field.type === 'dropdown') {
       const idx = typeof value === 'number' ? value : findDropdownIndex(field, value);
       setDropdownField(field, idx);
