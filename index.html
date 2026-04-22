@@ -630,17 +630,6 @@
           <option value="CDR T. L. BOSTON">CDR T. L. BOSTON</option>
           <option value="CDR B. W. BLACK">CDR B. W. BLACK</option>
           <option value="CDR N. S. ELLIOTT">CDR N. S. ELLIOTT</option>
-          <option value="CDR N. R. WHITEMAN">CDR N. R. WHITEMAN</option>
-          <option value="CDR M. J. HAYS">CDR M. J. HAYS</option>
-          <option value="CAPT D. M. GARDNER">CAPT D. M. GARDNER</option>
-          <option value="CDR R. A. HERRERA">CDR R. A. HERRERA</option>
-          <option value="CDR J. P. CULLITON">CDR J. P. CULLITON</option>
-          <option value="CDR A. G. SHEMON">CDR A. G. SHEMON</option>
-          <option value="CDR J. M. CINCOTTA">CDR J. M. CINCOTTA</option>
-          <option value="CAPT Z. R. BROWN">CAPT Z. R. BROWN</option>
-          <option value="CDR T. L. BOSTON">CDR T. L. BOSTON</option>
-          <option value="CDR B. W. BLACK">CDR B. W. BLACK</option>
-          <option value="CDR N. S. ELLIOTT">CDR N. S. ELLIOTT</option>
         </select>
       </div>
     </div>
@@ -952,33 +941,21 @@ function parseFormFields(xmlDoc) {
 
 function setTextField(field, value) {
   if (!field.separateRun) return;
-  // Remove all existing value runs
-  for (let i = field.valueRuns.length - 1; i >= 0; i--) {
-    field.valueRuns[i].parentNode && field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
-  }
-  const doc = field.endRun.ownerDocument;
-  const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
-  const insertBefore = field.endRun;
-  const parent = insertBefore.parentNode;
-  // Split value on \n — each line gets its own run; lines joined by <w:br/>
-  const lines = value.split('\n');
-  lines.forEach((line, idx) => {
-    const run = doc.createElementNS(W, 'w:r');
-    if (rPr) run.appendChild(rPr.cloneNode(true));
-    if (idx > 0) {
-      // Insert line break before this run
-      const brRun = doc.createElementNS(W, 'w:r');
-      if (rPr) brRun.appendChild(rPr.cloneNode(true));
-      const br = doc.createElementNS(W, 'w:br');
-      brRun.appendChild(br);
-      parent.insertBefore(brRun, insertBefore);
-    }
+  for (let i = 1; i < field.valueRuns.length; i++) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
+  if (field.valueRuns.length > 0) {
+    let tEl = field.valueRuns[0].getElementsByTagNameNS(W, 't')[0];
+    if (!tEl) { tEl = field.valueRuns[0].ownerDocument.createElementNS(W, 'w:t'); field.valueRuns[0].appendChild(tEl); }
+    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
+  } else {
+    const doc = field.separateRun.ownerDocument;
+    const newRun = doc.createElementNS(W, 'w:r');
+    const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
+    if (rPr) newRun.appendChild(rPr.cloneNode(true));
     const tEl = doc.createElementNS(W, 'w:t');
-    tEl.setAttribute('xml:space', 'preserve');
-    tEl.textContent = line;
-    run.appendChild(tEl);
-    parent.insertBefore(run, insertBefore);
-  });
+    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
+    newRun.appendChild(tEl);
+    field.endRun.parentNode.insertBefore(newRun, field.endRun);
+  }
 }
 
 function setDropdownField(field, selectedIndex) {
@@ -1170,7 +1147,6 @@ async function generateAll() {
       'Text45': ' ',
       '_condDetail': val('natops_condDetail') || ' ',
       'Dropdown25': val('natops_desigRec') || '  ',
-      '_desigFreeText': (AWF_RATES.includes(val('rank')) && val('natops_awfText').trim()) ? val('natops_awfText').trim() : ' ',
       'Text22': val('natops_expires').toUpperCase(),
       'Check1': val('continued') === 'yes',
       // Signatures
