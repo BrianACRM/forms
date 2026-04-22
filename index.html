@@ -952,21 +952,33 @@ function parseFormFields(xmlDoc) {
 
 function setTextField(field, value) {
   if (!field.separateRun) return;
-  for (let i = 1; i < field.valueRuns.length; i++) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
-  if (field.valueRuns.length > 0) {
-    let tEl = field.valueRuns[0].getElementsByTagNameNS(W, 't')[0];
-    if (!tEl) { tEl = field.valueRuns[0].ownerDocument.createElementNS(W, 'w:t'); field.valueRuns[0].appendChild(tEl); }
-    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
-  } else {
-    const doc = field.separateRun.ownerDocument;
-    const newRun = doc.createElementNS(W, 'w:r');
-    const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
-    if (rPr) newRun.appendChild(rPr.cloneNode(true));
-    const tEl = doc.createElementNS(W, 'w:t');
-    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
-    newRun.appendChild(tEl);
-    field.endRun.parentNode.insertBefore(newRun, field.endRun);
+  // Remove all existing value runs
+  for (let i = field.valueRuns.length - 1; i >= 0; i--) {
+    field.valueRuns[i].parentNode && field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
   }
+  const doc = field.endRun.ownerDocument;
+  const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
+  const insertBefore = field.endRun;
+  const parent = insertBefore.parentNode;
+  // Split value on \n — each line gets its own run; lines joined by <w:br/>
+  const lines = value.split('\n');
+  lines.forEach((line, idx) => {
+    const run = doc.createElementNS(W, 'w:r');
+    if (rPr) run.appendChild(rPr.cloneNode(true));
+    if (idx > 0) {
+      // Insert line break before this run
+      const brRun = doc.createElementNS(W, 'w:r');
+      if (rPr) brRun.appendChild(rPr.cloneNode(true));
+      const br = doc.createElementNS(W, 'w:br');
+      brRun.appendChild(br);
+      parent.insertBefore(brRun, insertBefore);
+    }
+    const tEl = doc.createElementNS(W, 'w:t');
+    tEl.setAttribute('xml:space', 'preserve');
+    tEl.textContent = line;
+    run.appendChild(tEl);
+    parent.insertBefore(run, insertBefore);
+  });
 }
 
 function setDropdownField(field, selectedIndex) {
@@ -1092,69 +1104,6 @@ async function fillTemplate(masterFile, fieldMap, filename) {
 
   updateRefFields(xmlDoc, refValues);
 
-  // ── SINGLE-PAGE ENFORCEMENT ──────────────────────────────────────────────
-  // Every generated form must fit on one page. Strategy:
-  //  1. Strip ALL empty spacer paragraphs from any cell that received content.
-  //  2. Lock every table row's height to "exact" so no row can ever push past
-  //     its template-defined size (atLeast rows are the main culprit).
-  // The "Check if Continued on Reverse Side" checkbox is the ONLY exception.
-
-  function getParentRow(node) {
-    let n = node.parentNode;
-    while (n) { if (n.localName === 'tr') return n; n = n.parentNode; }
-    return null;
-  }
-  function getParentCell(node) {
-    let n = node.parentNode;
-    while (n) { if (n.localName === 'tc') return n; n = n.parentNode; }
-    return null;
-  }
-  function isEmptyPara(p) {
-    const texts = p.getElementsByTagNameNS(W, 't');
-    for (let i = 0; i < texts.length; i++) { if (texts[i].textContent.trim()) return false; }
-    return p.getElementsByTagNameNS(W, 'ffData').length === 0;
-  }
-  function removeAllEmptyParasInCell(cell) {
-    // Remove empty paragraphs but keep at least one so cell stays valid
-    const paras = Array.from(cell.getElementsByTagNameNS(W, 'p'));
-    const empties = paras.filter(isEmptyPara);
-    const keep = paras.length - empties.length < 1 ? 1 : 0; // keep 1 if all empty
-    empties.slice(keep).forEach(p => p.parentNode && p.parentNode.removeChild(p));
-  }
-  function getCellForField(field) {
-    return getParentCell(field.beginRun);
-  }
-
-  // Strip empty spacers from cells that got non-blank content injected
-  const contentFields = [
-    ['Text45',     fieldMap['Text45']],
-    ['_condDetail',fieldMap['_condDetail']],
-  ];
-  contentFields.forEach(([key, val2]) => {
-    if (byName[key] && val2 && val2.trim()) {
-      removeAllEmptyParasInCell(getCellForField(byName[key]));
-    }
-  });
-
-  // Lock ALL table row heights to "exact" so no row can expand to page 2
-  const allRows = xmlDoc.getElementsByTagNameNS(W, 'tr');
-  for (let i = 0; i < allRows.length; i++) {
-    const row = allRows[i];
-    let trPr = row.getElementsByTagNameNS(W, 'trPr')[0];
-    if (!trPr) {
-      trPr = xmlDoc.createElementNS(W, 'w:trPr');
-      row.insertBefore(trPr, row.firstChild);
-    }
-    let trH = trPr.getElementsByTagNameNS(W, 'trHeight')[0];
-    if (trH) {
-      // Only lock rows that already have a defined height
-      const hVal = trH.getAttributeNS(W, 'val') || trH.getAttribute('w:val');
-      if (hVal && parseInt(hVal) > 0) {
-        trH.setAttributeNS(W, 'w:hRule', 'exact');
-      }
-    }
-  }
-
   const serializer = new XMLSerializer();
   const newXml = serializer.serializeToString(xmlDoc);
   zip.file('word/document.xml', newXml);
@@ -1218,9 +1167,10 @@ async function generateAll() {
       'Dropdown10': val('natops_deficiencies'),
       'Dropdown11': val('natops_qual'),
       'Dropdown34': val('natops_condHeader') || ' ',
-      'Text45': (AWF_RATES.includes(val('rank')) && val('natops_awfText').trim()) ? val('natops_awfText').trim() : ' ',
+      'Text45': ' ',
       '_condDetail': val('natops_condDetail') || ' ',
       'Dropdown25': val('natops_desigRec') || '  ',
+      '_desigFreeText': (AWF_RATES.includes(val('rank')) && val('natops_awfText').trim()) ? val('natops_awfText').trim() : ' ',
       'Text22': val('natops_expires').toUpperCase(),
       'Check1': val('continued') === 'yes',
       // Signatures
