@@ -1081,6 +1081,44 @@ async function fillTemplate(masterFile, fieldMap, filename) {
 
   updateRefFields(xmlDoc, refValues);
 
+  // Remove empty spacer paragraphs to prevent row expansion when extra text is added.
+  // Word's atLeast-height rows expand if content overflows — we reclaim blank lines instead.
+  function getParentCell(node) {
+    let n = node.parentNode;
+    while (n) { if (n.localName === 'tc') return n; n = n.parentNode; }
+    return null;
+  }
+  function isEmptyPara(p) {
+    const texts = p.getElementsByTagNameNS(W, 't');
+    for (let i = 0; i < texts.length; i++) { if (texts[i].textContent.trim()) return false; }
+    const flds = p.getElementsByTagNameNS(W, 'ffData');
+    return flds.length === 0;
+  }
+  function removePrecedingEmptyParas(field, maxRemove) {
+    // Walk up to find the paragraph containing the field's begin run
+    let para = field.beginRun.parentNode;
+    while (para && para.localName !== 'p') para = para.parentNode;
+    if (!para) return;
+    const cell = getParentCell(para);
+    if (!cell) return;
+    const paras = Array.from(cell.getElementsByTagNameNS(W, 'p'));
+    const idx = paras.indexOf(para);
+    let removed = 0;
+    for (let i = idx - 1; i >= 0 && removed < maxRemove; i--) {
+      if (isEmptyPara(paras[i])) { paras[i].parentNode.removeChild(paras[i]); removed++; }
+      else break;
+    }
+  }
+
+  // CRM free-text (Text45 first) — remove up to 2 spacers if content added
+  if (byName['Text45'] && fieldMap['Text45'] && fieldMap['Text45'].trim()) {
+    removePrecedingEmptyParas(byName['Text45'], 2);
+  }
+  // CQ/U detail (_condDetail / second Text45) — remove spacers above if content added
+  if (byName['_condDetail'] && fieldMap['_condDetail'] && fieldMap['_condDetail'].trim()) {
+    removePrecedingEmptyParas(byName['_condDetail'], 2);
+  }
+
   const serializer = new XMLSerializer();
   const newXml = serializer.serializeToString(xmlDoc);
   zip.file('word/document.xml', newXml);
@@ -1144,7 +1182,7 @@ async function generateAll() {
       'Dropdown10': val('natops_deficiencies'),
       'Dropdown11': val('natops_qual'),
       'Dropdown34': val('natops_condHeader') || ' ',
-      'Text45': ' ',
+      'Text45': (AWF_RATES.includes(val('rank')) && val('natops_awfText').trim()) ? val('natops_awfText').trim() : ' ',
       '_condDetail': val('natops_condDetail') || ' ',
       'Dropdown25': val('natops_desigRec') || '  ',
       'Text22': val('natops_expires').toUpperCase(),
