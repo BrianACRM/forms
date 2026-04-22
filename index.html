@@ -1081,8 +1081,18 @@ async function fillTemplate(masterFile, fieldMap, filename) {
 
   updateRefFields(xmlDoc, refValues);
 
-  // Remove empty spacer paragraphs to prevent row expansion when extra text is added.
-  // Word's atLeast-height rows expand if content overflows — we reclaim blank lines instead.
+  // ── SINGLE-PAGE ENFORCEMENT ──────────────────────────────────────────────
+  // Every generated form must fit on one page. Strategy:
+  //  1. Strip ALL empty spacer paragraphs from any cell that received content.
+  //  2. Lock every table row's height to "exact" so no row can ever push past
+  //     its template-defined size (atLeast rows are the main culprit).
+  // The "Check if Continued on Reverse Side" checkbox is the ONLY exception.
+
+  function getParentRow(node) {
+    let n = node.parentNode;
+    while (n) { if (n.localName === 'tr') return n; n = n.parentNode; }
+    return null;
+  }
   function getParentCell(node) {
     let n = node.parentNode;
     while (n) { if (n.localName === 'tc') return n; n = n.parentNode; }
@@ -1091,32 +1101,47 @@ async function fillTemplate(masterFile, fieldMap, filename) {
   function isEmptyPara(p) {
     const texts = p.getElementsByTagNameNS(W, 't');
     for (let i = 0; i < texts.length; i++) { if (texts[i].textContent.trim()) return false; }
-    const flds = p.getElementsByTagNameNS(W, 'ffData');
-    return flds.length === 0;
+    return p.getElementsByTagNameNS(W, 'ffData').length === 0;
   }
-  function removePrecedingEmptyParas(field, maxRemove) {
-    // Walk up to find the paragraph containing the field's begin run
-    let para = field.beginRun.parentNode;
-    while (para && para.localName !== 'p') para = para.parentNode;
-    if (!para) return;
-    const cell = getParentCell(para);
-    if (!cell) return;
+  function removeAllEmptyParasInCell(cell) {
+    // Remove empty paragraphs but keep at least one so cell stays valid
     const paras = Array.from(cell.getElementsByTagNameNS(W, 'p'));
-    const idx = paras.indexOf(para);
-    let removed = 0;
-    for (let i = idx - 1; i >= 0 && removed < maxRemove; i--) {
-      if (isEmptyPara(paras[i])) { paras[i].parentNode.removeChild(paras[i]); removed++; }
-      else break;
-    }
+    const empties = paras.filter(isEmptyPara);
+    const keep = paras.length - empties.length < 1 ? 1 : 0; // keep 1 if all empty
+    empties.slice(keep).forEach(p => p.parentNode && p.parentNode.removeChild(p));
+  }
+  function getCellForField(field) {
+    return getParentCell(field.beginRun);
   }
 
-  // CRM free-text (Text45 first) — remove up to 2 spacers if content added
-  if (byName['Text45'] && fieldMap['Text45'] && fieldMap['Text45'].trim()) {
-    removePrecedingEmptyParas(byName['Text45'], 2);
-  }
-  // CQ/U detail (_condDetail / second Text45) — remove spacers above if content added
-  if (byName['_condDetail'] && fieldMap['_condDetail'] && fieldMap['_condDetail'].trim()) {
-    removePrecedingEmptyParas(byName['_condDetail'], 2);
+  // Strip empty spacers from cells that got non-blank content injected
+  const contentFields = [
+    ['Text45',     fieldMap['Text45']],
+    ['_condDetail',fieldMap['_condDetail']],
+  ];
+  contentFields.forEach(([key, val2]) => {
+    if (byName[key] && val2 && val2.trim()) {
+      removeAllEmptyParasInCell(getCellForField(byName[key]));
+    }
+  });
+
+  // Lock ALL table row heights to "exact" so no row can expand to page 2
+  const allRows = xmlDoc.getElementsByTagNameNS(W, 'tr');
+  for (let i = 0; i < allRows.length; i++) {
+    const row = allRows[i];
+    let trPr = row.getElementsByTagNameNS(W, 'trPr')[0];
+    if (!trPr) {
+      trPr = xmlDoc.createElementNS(W, 'w:trPr');
+      row.insertBefore(trPr, row.firstChild);
+    }
+    let trH = trPr.getElementsByTagNameNS(W, 'trHeight')[0];
+    if (trH) {
+      // Only lock rows that already have a defined height
+      const hVal = trH.getAttributeNS(W, 'val') || trH.getAttribute('w:val');
+      if (hVal && parseInt(hVal) > 0) {
+        trH.setAttributeNS(W, 'w:hRule', 'exact');
+      }
+    }
   }
 
   const serializer = new XMLSerializer();
