@@ -387,8 +387,8 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Areas Detail</label>
-          <input type="text" id="natops_condDetail" placeholder="Describe areas...">
+          <label>Areas Detail <span class="hint">(one per line)</span></label>
+          <textarea id="natops_condDetail" rows="3" placeholder="Subarea 1&#10;Subarea 2&#10;Subarea 3" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;resize:vertical"></textarea>
         </div>
       </div>
       <div class="form-row">
@@ -573,8 +573,8 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Areas Detail</label>
-          <input type="text" id="arp_condDetail" placeholder="Describe areas...">
+          <label>Areas Detail <span class="hint">(one per line)</span></label>
+          <textarea id="arp_condDetail" rows="3" placeholder="Subarea 1&#10;Subarea 2&#10;Subarea 3" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;resize:vertical"></textarea>
         </div>
       </div>
 
@@ -866,7 +866,7 @@ function updateAllPreviews() {
 }
 
 // Listen to all fields for preview updates
-document.querySelectorAll('#mainForm select, #mainForm input').forEach(el => {
+document.querySelectorAll('#mainForm select, #mainForm input, #mainForm textarea').forEach(el => {
   el.addEventListener('input', updateAllPreviews);
   el.addEventListener('change', updateAllPreviews);
 });
@@ -1042,10 +1042,12 @@ async function fillTemplate(masterFile, fieldMap, filename) {
     if (f.name) { if (!byName[f.name]) byName[f.name] = f; }
   });
 
-  // Handle duplicate Text45: find the one right after Dropdown34 (CQ/U detail box)
+  // Handle duplicate Text45: find the first Text45 that appears AFTER Dropdown34 (CQ/U detail box)
+  // Using slice+find instead of exact +1 position to be resilient against intervening unnamed fields
   const dd34idx = fields.findIndex(f => f.name === 'Dropdown34');
-  if (dd34idx >= 0 && dd34idx + 1 < fields.length && fields[dd34idx + 1].name === 'Text45') {
-    byName['_condDetail'] = fields[dd34idx + 1];
+  if (dd34idx >= 0) {
+    const nextText45 = fields.slice(dd34idx + 1).find(f => f.name === 'Text45');
+    if (nextText45) byName['_condDetail'] = nextText45;
   }
 
   // Identify unnamed fields by position
@@ -1265,7 +1267,7 @@ async function generateAll() {
       'Dropdown10': val('arp_deficiencies'),
       'Dropdown11': val('arp_qual'),
       'Dropdown34': val('arp_condHeader') || ' ',
-      'Text45': val('arp_condDetail') || ' ',
+      '_condDetail': val('arp_condDetail') || ' ',
       'Dropdown25': '  ',
       'Text22': val('arp_expires').toUpperCase(),
       'Check1': val('continued') === 'yes',
