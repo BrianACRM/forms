@@ -941,7 +941,7 @@ function parseFormFields(xmlDoc) {
 
 function setTextField(field, value) {
   if (!field.separateRun) return;
-  for (let i = 1; i < field.valueRuns.length; i++) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
+  for (let i = 1; i < field.valueRuns.length; i++) { if (field.valueRuns[i].parentNode) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]); }
   if (field.valueRuns.length > 0) {
     let tEl = field.valueRuns[0].getElementsByTagNameNS(W, 't')[0];
     if (!tEl) { tEl = field.valueRuns[0].ownerDocument.createElementNS(W, 'w:t'); field.valueRuns[0].appendChild(tEl); }
