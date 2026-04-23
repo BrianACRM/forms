@@ -941,21 +941,30 @@ function parseFormFields(xmlDoc) {
 
 function setTextField(field, value) {
   if (!field.separateRun) return;
-  for (let i = 1; i < field.valueRuns.length; i++) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
-  if (field.valueRuns.length > 0) {
-    let tEl = field.valueRuns[0].getElementsByTagNameNS(W, 't')[0];
-    if (!tEl) { tEl = field.valueRuns[0].ownerDocument.createElementNS(W, 'w:t'); field.valueRuns[0].appendChild(tEl); }
-    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
-  } else {
-    const doc = field.separateRun.ownerDocument;
-    const newRun = doc.createElementNS(W, 'w:r');
-    const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
-    if (rPr) newRun.appendChild(rPr.cloneNode(true));
-    const tEl = doc.createElementNS(W, 'w:t');
-    tEl.setAttribute('xml:space', 'preserve'); tEl.textContent = value;
-    newRun.appendChild(tEl);
-    field.endRun.parentNode.insertBefore(newRun, field.endRun);
+  // Remove all existing value runs
+  for (let i = field.valueRuns.length - 1; i >= 0; i--) {
+    if (field.valueRuns[i].parentNode) field.valueRuns[i].parentNode.removeChild(field.valueRuns[i]);
   }
+  const doc = field.endRun.ownerDocument;
+  const rPr = field.separateRun.getElementsByTagNameNS(W, 'rPr')[0];
+  const parent = field.endRun.parentNode;
+  // Split on newlines — emit a w:br between lines so Word renders them correctly
+  const lines = value.split('\n');
+  lines.forEach((line, idx) => {
+    if (idx > 0) {
+      const brRun = doc.createElementNS(W, 'w:r');
+      if (rPr) brRun.appendChild(rPr.cloneNode(true));
+      brRun.appendChild(doc.createElementNS(W, 'w:br'));
+      parent.insertBefore(brRun, field.endRun);
+    }
+    const run = doc.createElementNS(W, 'w:r');
+    if (rPr) run.appendChild(rPr.cloneNode(true));
+    const tEl = doc.createElementNS(W, 'w:t');
+    tEl.setAttribute('xml:space', 'preserve');
+    tEl.textContent = line;
+    run.appendChild(tEl);
+    parent.insertBefore(run, field.endRun);
+  });
 }
 
 function setDropdownField(field, selectedIndex) {
@@ -1029,6 +1038,11 @@ async function fillTemplate(masterFile, fieldMap, filename) {
   let docXml = await zip.file('word/document.xml').async('string');
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(docXml, 'application/xml');
+  // Ensure all w:t elements preserve whitespace so static space runs between fields aren't stripped
+  const allT = xmlDoc.getElementsByTagNameNS(W, 't');
+  for (let i = 0; i < allT.length; i++) {
+    if (!allT[i].getAttribute('xml:space')) allT[i].setAttribute('xml:space', 'preserve');
+  }
   const fields = parseFormFields(xmlDoc);
 
   const byName = {};
@@ -1165,6 +1179,10 @@ async function generateAll() {
     }
     // Designation
     if (val('natops_desigAs')) fields['_desigAs'] = val('natops_desigAs');
+    // AWF blurb goes in the free text block in the designation area (Row 2, P1)
+    if (AWF_RATES.includes(val('rank')) && val('natops_awfText').trim()) {
+      fields['_desigFreeText'] = val('natops_awfText').trim();
+    }
 
     const fn = `3710 ${pos.replace(/\s+/g,'_')} ${formatDate(val('natops_flightDate')).replace(/\s+/g,'')}.docx`;
     filenames.push(fn);
