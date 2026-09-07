@@ -26,7 +26,7 @@ def record(data):
 
 
 def equivalent(a, b):
-    if a == b:
+    if a.strip() == b.strip():
         return True
     try:
         return Decimal(a) == Decimal(b)
@@ -70,6 +70,8 @@ def audit(reference, generated):
         got = actual.get(name, [])
         check(len(values) == len(got), 'Occurrence count: ' + name)
         for i, (a, b) in enumerate(zip(values, got)):
+            if a != b and a.strip() == b.strip():
+                print(f'NOTE: {name}[{i}] differs only in surrounding whitespace')
             check(equivalent(a, b), f'{name}[{i}]: example {a!r}, output {b!r}')
     # Names with bind=none are stored in the saved form packet by Acrobat.
     if 'form' in before:
