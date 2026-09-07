@@ -8,15 +8,23 @@ const header=['Year','Month','Day','Frame','Total','Act Inst','Sim Inst','1/A','
 const row=(y,m,d,frame,total,actual,sim,...counts)=>[y,m,d,frame,total,actual,sim,...counts];
 
 test('SHARP columns are summed without totals-row duplication or dropping TACAN',()=>{
-  const r=C.parseRows([['Average Instrument Logbook for EXAMPLE, A, LT'],header,row(2026,7,17,'E-6B',4,1,.5,1,2,3,4,1,2,3,4,5,6,7,8,9,10),['TOTALS','','','',999,999]]);
-  assert.equal(r.flights.length,1);assert.equal(r.flights[0].precision,10);assert.equal(r.flights[0].nonprecision,55);
+  const r=C.parseRows([['Average Instrument Logbook for EXAMPLE, A, LT'],header,row(2026,7,17,'E-6B',4,1,.5,1,2,0,4,1,2,3,4,5,6,7,8,9,10),['TOTALS','','','',999,999]]);
+  assert.equal(r.flights.length,1);assert.equal(r.flights[0].precision,7);assert.equal(r.flights[0].nonprecision,55);
   assert.deepEqual(r.person,{lastName:'EXAMPLE',given:'A',rank:'LT'});
 });
-test('inclusive date windows, future exclusion, multiple flights per day and model hours',()=>{
+test('3710 excludes anniversary boundaries and unreviewed check-day sorties from recent totals',()=>{
   const r=C.parseRows([header,row(2025,7,16,'E-6B',1,1,0),row(2025,7,17,'E-6B',2,1,0),row(2026,1,16,'B-737',3,1,0),row(2026,1,17,'E-6B',4,1,0),row(2026,7,17,'E-6B',5,1,.3),row(2026,7,17,'E-6B',1,0,.3),row(2026,7,18,'E-6B',100,50,5)]);
   const s=C.summarize(r,'2026-07-17','E-6B');
-  assert.equal(s.six.count,3);assert.equal(s.twelve.count,5);assert.equal(s.excluded,1);
-  assert.equal(s.six.simulated,.6);assert.equal(s.modelHours,13);assert.equal(s.all.total,16);
+  assert.equal(s.six.count,0);assert.equal(s.twelve.count,2);assert.equal(s.excluded,1);assert.equal(s.checkDayExcluded,2);
+  assert.equal(s.six.simulated,0);assert.equal(s.modelHours,13);assert.equal(s.all.total,16);
+  const reviewed=C.summarize(r,'2026-07-17','E-6B',{priorSortieRows:[r.flights[5].sourceRow,r.flights[6].sourceRow]});
+  assert.equal(reviewed.six.count,1);assert.equal(reviewed.six.total,1);assert.equal(reviewed.six.simulated,.3);
+  assert.equal(reviewed.checkDayExcluded,1);assert.equal(reviewed.excluded,1,'A selected row after the checkride never counts');
+});
+test('the day after each anniversary counts and prior evaluations inside the window remain eligible',()=>{
+  const r=C.parseRows([header,row(2025,7,17,'E-6B',10,10,0),row(2025,7,18,'E-6B',2,1,0),row(2026,1,17,'E-6B',3,1,0),row(2026,1,18,'E-6B',4,1,0)]);
+  const s=C.summarize(r,'2026-07-17','E-6B');
+  assert.equal(s.twelve.count,3);assert.equal(s.twelve.total,9);assert.equal(s.six.count,1);assert.equal(s.six.total,4);
 });
 test('calendar lookbacks clamp month ends and reject invalid dates',()=>{
   assert.equal(C.subtractMonths('2026-08-31',6),'2026-02-28');
@@ -30,6 +38,7 @@ test('rejects missing report columns, invalid flight rows and fractional approac
   assert.throws(()=>C.parseRows([header,row(2026,2,30,'E-6B',1,0,0)]),/valid date/);
   assert.throws(()=>C.parseRows([header,row(2026,2,1,'E-6B',1,0,0,.5)]),/whole numbers/);
   assert.throws(()=>C.parseRows([header,row(2026,2,1,'E-6B','bad',0,0)]),/nonnegative/);
+  assert.throws(()=>C.parseRows([header,row(2026,2,1,'E-6B',1,0,0,0,0,1)]),/CCA.*glidepath/);
 });
 test('blank logged metrics mean zero; lifetime totals are not inferred',()=>{
   const s=C.summarize(C.parseRows([header,row(2026,7,17,'E-6B',4,'','')]),'2026-07-17','E-6B');

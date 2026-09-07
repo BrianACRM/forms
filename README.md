@@ -38,19 +38,28 @@ fields. This permits edits under Adobe's [XFA override rules](https://helpx.adob
 
 ### SHARP calculations
 
-- Rolling six- and twelve-month intervals end on the chosen check-flight date.
-  Both the start and end date are included. Month-end dates are clamped to the
-  last valid day when subtracting months. The date ranges are displayed for review.
-- Precision approaches sum `1/A`, `PAR`, `CCA`, and `ILS`. Non-precision approaches
+- Recent instrument totals follow CNAF M-3710.7 (7 February 2025), §13.2.1:
+  the six-/twelve-month anniversary date is excluded. Check-day entries are
+  excluded unless individually identified as separate sorties completed before
+  the evaluation. Changing the date clears those selections. Later flights
+  never count. Month-end lookbacks clamp to the last valid day.
+- Precision approaches sum `1/A`, `PAR`, and `ILS`. Non-precision approaches
   sum `2/B`, `ASR`, `ELVA`, `L/MF`, `LOC`, `NDB`, `SCA`, `TACAN`, `VOR`, `VOR/DME`.
+  Nonzero `CCA` entries require reviewed classification: Appendix F.6 distinguishes
+  approaches by glidepath guidance, which that column alone does not establish.
+  The importer reports this limitation instead of assigning precision credit.
 - Flight detail rows are counted once. Footer totals and future flights are excluded.
   Multiple flights on the same date are retained. Blank logged metrics mean zero.
 - Recent totals include all aircraft frames. Report-only model hours use an exact,
-  case-insensitive frame match. Workbook totals never become lifetime totals.
+  case-insensitive frame match. Report-only totals include every logged entry
+  through the check date; these are distinct from the recent prerequisite totals.
+  Workbook totals never become lifetime totals.
 - SHARP often supplies only a first initial. The page does not invent a full first
   name, middle initial, EDIPI, years of experience, or career totals.
 - The expiration suggestion follows the example's convention (end of the same
   month in the following year). Review it for the evaluation. Manual edits persist.
+
+See [verified instrument rules and remaining record checks](docs/instrument-rules.md).
 
 All workbook processing, calculations and document generation happen in the
 browser. Imported workbooks and applicant data are neither uploaded nor persisted

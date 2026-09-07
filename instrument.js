@@ -29,12 +29,16 @@
       <p id="inst_identity"></p>
       <button type="button" class="instrument-button" id="inst_useIdentity">Use name and rank from SHARP</button>
       <p id="inst_coverage" class="instrument-help"></p>
+      <div id="inst_checkDay" hidden>
+        <p class="instrument-help">Flights logged on checkride day are excluded from recent totals. Select only a separate sortie completed before the evaluation.</p>
+        <div id="inst_checkDayRows"></div>
+      </div>
       <button type="button" class="instrument-button" id="inst_apply">Calculate & fill recent totals</button>
       <button type="button" class="instrument-button" id="inst_clear">Remove imported workbook</button>
       <p id="inst_summary" class="instrument-help"></p>
     </div></section>
     <hr class="divider"><div class="section-title">13. Approach counts</div>
-    <p class="instrument-help">Imports use the date six or twelve calendar months before the check flight through the check-flight date, including both dates. Review and edit any imported figures below.</p>
+    <p class="instrument-help">Recent totals count flights after the date six or twelve months before the checkride. The checkride itself is excluded; only separate earlier sorties may count on that day. <a href="https://www.med.navy.mil/Portals/62/Documents/NMFSC/NMOTC/NAMI/ARWG/Miscellaneous/CNAF%20M_3710_7%20FEB%202025.pdf?ver=2QUgzKUiKkzOeFOiPQNxxA%3D%3D" target="_blank" rel="noopener">CNAF M-3710.7 §13.2.1</a></p>
     <div class="instrument-table-wrap"><table class="grade-table"><thead><tr><th>Approaches</th><th>Last 6 months</th><th>Last 12 months</th></tr></thead><tbody>
       ${['precision','nonprecision'].map(k=>`<tr><td>${k==='precision'?'Precision':'Non-precision'}</td>${[6,12].map(n=>`<td><input id="inst_${k}${n}" type="number" min="0" step="1" aria-label="${k==='precision'?'Precision':'Non-precision'} approaches, last ${n} months"></td>`).join('')}</tr>`).join('')}
     </tbody></table></div>
@@ -125,6 +129,22 @@
     if (appliedDate && appliedDate!==value('inst_flightDate')) status('Check-flight date changed. Recalculate recent totals for the new date.',true);
   }
   function status(text,error=false) {el('inst_importStatus').textContent=text;el('inst_importStatus').classList.toggle('instrument-error',error);}
+  let checkDayDate=null;
+  function showCheckDayRows(force=false){
+    const date=value('inst_flightDate');
+    if(!force&&date===checkDayDate)return;
+    checkDayDate=date;
+    const rows=report?.flights.filter(r=>r.date===value('inst_flightDate'))||[];
+    el('inst_checkDay').hidden=!rows.length;
+    el('inst_checkDayRows').replaceChildren();
+    for(const r of rows){
+      const label=document.createElement('label');label.className='instrument-inline';
+      const input=document.createElement('input');input.type='checkbox';input.value=String(r.sourceRow);
+      input.addEventListener('change',()=>el('inst_apply').click());
+      label.append(input,document.createTextNode(` Earlier separate sortie: row ${r.sourceRow}, ${r.frame}, ${r.total.toFixed(1)} hours (${r.actual.toFixed(1)} actual / ${r.simulated.toFixed(1)} simulated)`));
+      el('inst_checkDayRows').append(label);
+    }
+  }
   card.addEventListener('input',refresh);card.addEventListener('change',refresh);
   el('chk_instrument').addEventListener('change',refresh);
   el('inst_qualify').addEventListener('click',()=>{
@@ -143,6 +163,7 @@
       const parsed=await readSharpWorkbook(await file.arrayBuffer());
       if(version!==importVersion)return;
       report=parsed;
+      showCheckDayRows(true);
       el('inst_report').hidden=false;
       el('inst_identity').textContent=report.person ? `SHARP record: ${report.person.lastName}, ${report.person.given}, ${report.person.rank}` : 'No aviator name found in this report.';
       el('inst_useIdentity').disabled=!report.person;
@@ -175,15 +196,17 @@
   el('inst_apply').addEventListener('click',()=>{
     if(!report)return;
     try {
-      const s=C.summarize(report,value('inst_flightDate'),value('inst_aircraftModel'));
+      const priorSortieRows=Array.from(el('inst_checkDayRows').querySelectorAll('input:checked'),e=>Number(e.value));
+      const s=C.summarize(report,value('inst_flightDate'),value('inst_aircraftModel'),{priorSortieRows});
       if(!s.all.count)throw new Error('There are no report entries on or before this check-flight date.');
       for(const [n,summary] of [[6,s.six],[12,s.twelve]]) for(const key of ['precision','nonprecision','actual','simulated']) el(`inst_${key}${n}`).value=key.includes('precision') ? summary[key] : summary[key].toFixed(1);
       appliedDate=s.asOf;reportApplied=true;totals();
-      el('inst_summary').textContent=`6 months: ${C.displayDate(s.first6)}–${C.displayDate(s.asOf)} (${s.six.count} entries). 12 months: ${C.displayDate(s.first12)}–${C.displayDate(s.asOf)} (${s.twelve.count} entries). ${s.excluded} later entries excluded. Report-only hours through the check date: ${s.all.total.toFixed(1)} total; ${s.modelHours.toFixed(1)} in ${value('inst_aircraftModel')}. These are not lifetime totals.`;
+      el('inst_summary').textContent=`6 months: after ${C.displayDate(s.first6)} through ${C.displayDate(s.asOf)} (${s.six.count} entries). 12 months: after ${C.displayDate(s.first12)} through ${C.displayDate(s.asOf)} (${s.twelve.count} entries). ${s.checkDayExcluded} check-day entries and ${s.excluded} later entries excluded from recent totals. Report-only hours, including all entries through the check date: ${s.all.total.toFixed(1)} total; ${s.modelHours.toFixed(1)} in ${value('inst_aircraftModel')}. These are not lifetime totals.`;
       status('Recent totals filled. Review report coverage and values, then enter lifetime figures.');
     }catch(e){status(e.message,true);}
   });
   el('inst_flightDate').addEventListener('change',()=>{
+    showCheckDayRows();
     if(report)el('inst_apply').click();
     // Suggest the example's expiration convention; a user's edit always wins.
     const date=value('inst_flightDate');

@@ -61,7 +61,7 @@
       return i;
     };
     const total = find('total'), actual = find('act inst'), simulated = find('sim inst');
-    const precision = ['1/a','par','cca','ils'].map(find);
+    const precision = ['1/a','par','ils'].map(find),cca=find('cca');
     const nonprecision = ['2/b','asr','elva','l/mf','loc','ndb','sca','tacan','vor','vor/dme'].map(find);
     const flights = [];
     for (let i = hi + 1; i < rows.length; i++) {
@@ -78,7 +78,8 @@
       }, 0);
       const frame = String(r[3] || '').trim();
       if (!frame) throw new Error(`Row ${i+1}: aircraft frame is missing.`);
-      flights.push({date, frame, total:read(total), actual:read(actual), simulated:read(simulated), precision:count(precision), nonprecision:count(nonprecision)});
+      if(read(cca))throw new Error(`Row ${i+1}: CCA does not identify whether glidepath guidance was provided. Use classified approach entries or enter reviewed totals manually.`);
+      flights.push({sourceRow:i+1,date, frame, total:read(total), actual:read(actual), simulated:read(simulated), precision:count(precision), nonprecision:count(nonprecision)});
     }
     if (!flights.length) throw new Error('No flight entries found in this SHARP report.');
     flights.sort((a,b) => a.date.localeCompare(b.date));
@@ -87,16 +88,20 @@
     return {flights, person:identity ? {lastName:identity[1].trim(), given:identity[2].trim(), rank:identity[3].trim()} : null,
       firstDate:flights[0].date, lastDate:flights[flights.length-1].date};
   }
-  function summarize(report, asOf, model) {
+  function summarize(report, asOf, model, {priorSortieRows=[]}={}) {
     isoDate(asOf);
     const first6 = subtractMonths(asOf,6), first12 = subtractMonths(asOf,12);
     const eligible = report.flights.filter(r => r.date <= asOf);
+    const earlierSorties=new Set(priorSortieRows);
+    // CNAF M-3710.7 (7 Feb 2025), 13.2.1: after the anniversary date;
+    // check-day credit must come from a separate sortie before evaluation.
+    const recentEligible=eligible.filter(r=>r.date<asOf||earlierSorties.has(r.sourceRow));
     const sum = rows => ({count:rows.length, total:round(rows.reduce((s,r)=>s+r.total,0)), actual:round(rows.reduce((s,r)=>s+r.actual,0)), simulated:round(rows.reduce((s,r)=>s+r.simulated,0)), precision:rows.reduce((s,r)=>s+r.precision,0), nonprecision:rows.reduce((s,r)=>s+r.nonprecision,0)});
-    const six = sum(eligible.filter(r=>r.date>=first6));
-    const twelve = sum(eligible.filter(r=>r.date>=first12));
+    const six = sum(recentEligible.filter(r=>r.date>first6));
+    const twelve = sum(recentEligible.filter(r=>r.date>first12));
     const all = sum(eligible);
     const modelRows = eligible.filter(r=>r.frame.toUpperCase()===String(model).trim().toUpperCase());
-    return {six,twelve,all,modelHours:sum(modelRows).total,modelCount:modelRows.length,first6,first12,asOf,excluded:report.flights.length-eligible.length};
+    return {six,twelve,all,modelHours:sum(modelRows).total,modelCount:modelRows.length,first6,first12,asOf,excluded:report.flights.length-eligible.length,checkDayExcluded:eligible.length-recentEligible.length};
   }
   function splitRankName(text) {
     const m = /^(CAPT|CDR|LCDR|LTJG|LT|ENS|CWO[2-5])\s+(.+)$/i.exec(String(text).trim());
