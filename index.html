@@ -6,6 +6,10 @@
 <title>Checkride Paperwork Generator</title>
 <script src="jszip.min.js"></script>
 <script src="FileSaver.min.js"></script>
+<script src="vendor/pdf-lib-1.17.1.min.js"></script>
+<script src="instrument-core.js"></script>
+<script src="sharp-import.js"></script>
+<script src="instrument-pdf.js"></script>
 <style>
   :root { --navy:#003366; --navy-light:#004080; --gold:#c5a44e; --bg:#f4f6f8; --card:#fff; --border:#d0d5dd; --text:#1a1a1a; --label:#344054; --danger:#b42318; --success:#067647; }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -19,7 +23,8 @@
   .form-selector h2{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--navy);margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid var(--gold)}
   .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
   .form-check{position:relative}
-  .form-check input{display:none}
+  .form-check input{position:absolute;opacity:0;width:1px;height:1px}
+  .form-check input:focus-visible+label{outline:3px solid var(--gold);outline-offset:2px}
   .form-check label{display:block;padding:12px 16px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;font-size:.88rem;font-weight:600}
   .form-check label:hover{border-color:var(--navy-light);background:#f0f4f8}
   .form-check input:checked+label{border-color:var(--navy);background:#e0e9f5;color:var(--navy)}
@@ -68,6 +73,26 @@
   .none-selected-msg{text-align:center;color:#888;padding:40px;font-style:italic}
   .hint{font-size:.7rem;color:#888;font-weight:400;text-transform:none;letter-spacing:0}
   .divider{border:none;border-top:1px dashed var(--border);margin:16px 0}
+  .instrument-help{font-size:.8rem;color:#475467;margin:8px 0 14px}
+  .instrument-button{padding:8px 12px;border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:6px;cursor:pointer;margin:6px 8px 6px 0;font:inherit;font-size:.82rem}
+  .instrument-button:hover{background:#e8eef5}
+  .instrument-button:disabled{opacity:.5;cursor:not-allowed}
+  .instrument-status{font-size:.84rem;margin:12px 0;color:var(--success)}
+  .instrument-error{color:var(--danger)}
+  .instrument-inline{display:flex;align-items:center;gap:8px;font-size:.82rem;margin:0 0 14px}
+  .instrument-file-label{display:block;font-size:.82rem;font-weight:600;margin-bottom:6px}
+  .instrument-grade-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:18px}
+  .instrument-grade-columns h3{font-size:.84rem;color:var(--navy);margin-bottom:8px}
+  .instrument-grade{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.8rem}
+  .instrument-grade select{padding:5px;border:1px solid var(--border);border-radius:4px;background:white}
+  .instrument-table-wrap{overflow-x:auto}
+  #cfg_instrument .grade-table input{width:100%;min-width:70px;padding:7px;border:1px solid var(--border);border-radius:4px;font:inherit;text-align:center}
+  #cfg_instrument input[readonly]{background:#f2f4f7}
+  #inst_remarks{width:100%;font:inherit;font-size:.88rem;padding:12px;border:1px solid var(--border);border-radius:6px;resize:vertical}
+  #cfg_instrument .invalid{border-color:var(--danger)!important;background:#fef3f2!important}
+  #cfg_instrument details{margin-top:14px}
+  #cfg_instrument summary{cursor:pointer;margin-bottom:10px;font-size:.85rem}
+  @media(max-width:600px){.instrument-grade-columns{grid-template-columns:1fr}.form-card-body{padding:18px 14px}.grade-table th,.grade-table td{padding:6px}}
 </style>
 </head>
 <body>
@@ -92,8 +117,8 @@
         <label for="chk_arp">ARP<small>Air Refueling Pilot</small></label>
       </div>
       <div class="form-check">
-        <input type="checkbox" id="chk_instrument" value="instrument" disabled>
-        <label for="chk_instrument" style="opacity:.5">Instrument Check <span class="badge-coming">Coming</span><small>Instrument Flight Eval</small></label>
+        <input type="checkbox" id="chk_instrument" value="instrument">
+        <label for="chk_instrument">Instrument Check<small>OPNAV 3710/2 · PDF + SHARP import</small></label>
       </div>
       <div class="form-check">
         <input type="checkbox" id="chk_designation" value="designation" disabled>
@@ -119,7 +144,7 @@
         <input type="text" id="firstName" placeholder="Brian" style="text-transform:capitalize">
       </div>
       <div class="form-group w-fixed">
-        <label>MI <span class="req">*</span></label>
+        <label>MI <span class="hint">(if applicable for instrument)</span></label>
         <input type="text" id="middleInit" maxlength="1" placeholder="A" style="text-transform:uppercase">
       </div>
     </div>
@@ -799,7 +824,7 @@ function updateFormVisibility() {
   const any = [...formCheckboxes].some(c => c.checked && !c.disabled);
   $('mainForm').style.display = any ? '' : 'none';
   $('noneSelected').style.display = any ? 'none' : '';
-  ['natops','arp'].forEach(t => {
+  ['natops','arp','instrument'].forEach(t => {
     const cfg = $('cfg_'+t);
     if (cfg) cfg.classList.toggle('active', $('chk_'+t).checked);
   });
@@ -875,10 +900,11 @@ document.querySelectorAll('#mainForm select, #mainForm input, #mainForm textarea
 function validate() {
   const errors = [];
   const check = (id, label) => { const e=$(id); if(!e)return; if(!e.value.trim()){errors.push(label);e.classList.add('invalid')}else{e.classList.remove('invalid')} };
-  check('lastName','Last Name'); check('firstName','First Name'); check('middleInit','MI');
+  check('lastName','Last Name'); check('firstName','First Name');
+  if ($('chk_natops').checked || $('chk_arp').checked) check('middleInit','MI');
   check('rank','Rank'); check('dodId','DoD EDIPI'); check('squadron','Squadron/Unit');
   check('totalHours','Total Hours'); check('modelHours','Model Hours');
-  check('buno','Aircraft BUNO');
+  if ($('chk_natops').checked || $('chk_arp').checked || !val('inst_bunoOverride')) check('buno','Aircraft BUNO');
   check('evaluatorName','Evaluator Name');
   if ($('chk_natops').checked) {
     check('natops_position','NATOPS Position');
@@ -895,6 +921,7 @@ function validate() {
     check('arp_flightDuration','ARP Flight Duration'); check('arp_overallGrade','ARP Overall Grade');
     check('arp_expires','ARP Expires');
   }
+  if ($('chk_instrument').checked) errors.push(...instrumentForm.validate());
   if (errors.length) {
     $('errorBanner').innerHTML = '<strong>Missing:</strong> ' + errors.join(', ');
     $('errorBanner').classList.add('show'); $('successBanner').classList.remove('show');
@@ -1225,7 +1252,7 @@ async function generateAll() {
 
     const fn = `3710 ${pos.replace(/\s+/g,'_')} ${formatDate(val('natops_flightDate')).replace(/\s+/g,'')}.docx`;
     filenames.push(fn);
-    tasks.push(fillTemplate('Master 3710-Form.docx', fields, fn));
+    tasks.push(() => fillTemplate('Master 3710-Form.docx', fields, fn));
   }
 
   if ($('chk_arp').checked) {
@@ -1288,20 +1315,22 @@ async function generateAll() {
 
     const fn = `ARP 3710 ${formatDate(val('arp_flightDate')).replace(/\s+/g,'')}.docx`;
     filenames.push(fn);
-    tasks.push(fillTemplate('Master ARP 3710 Form (15 MAY 23).docx', fields, fn));
+    tasks.push(() => fillTemplate('Master ARP 3710 Form (15 MAY 23).docx', fields, fn));
   }
 
+  if ($('chk_instrument').checked) tasks.push(async () => { filenames.push(await instrumentForm.generate()); });
   $('generateBtn').disabled=true; $('generateBtn').textContent='Generating...';
   try {
-    for (const task of tasks) { await task; await new Promise(r=>setTimeout(r,500)); }
-    $('successBanner').innerHTML=`<strong>Generated ${filenames.length} form(s):</strong> ` + filenames.join(', ');
+    for (const task of tasks) { await task(); await new Promise(r=>setTimeout(r,500)); }
+    $('successBanner').textContent=`Generated ${filenames.length} form(s): ` + filenames.join(', ');
     $('successBanner').classList.add('show'); $('errorBanner').classList.remove('show');
   } catch(err) {
-    $('errorBanner').innerHTML='<strong>Error:</strong> '+err.message;
+    $('errorBanner').textContent='Error: '+err.message;
     $('errorBanner').classList.add('show'); console.error(err);
   }
   $('generateBtn').disabled=false; $('generateBtn').textContent='GENERATE ALL SELECTED FORMS';
 }
 </script>
+<script src="instrument.js"></script>
 </body>
 </html>
