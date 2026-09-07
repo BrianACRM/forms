@@ -36,7 +36,10 @@
       const rel = rels.find(r=>r.getAttribute('Id')===id);
       if (!rel || rel.getAttribute('TargetMode')==='External') continue;
       const doc = await read(partPath('xl/workbook.xml',rel.getAttribute('Target')));
-      const rows = nodes(doc,'row').map(row => {
+      const sheetRows=[];
+      for(const row of nodes(doc,'row')){
+        const rowNumber=Number(row.getAttribute('r'));
+        if(!Number.isSafeInteger(rowNumber)||rowNumber<1||rowNumber>100000||sheetRows[rowNumber-1])throw new Error('Invalid or duplicate Excel row number.');
         const cells = [];
         for (const cell of nodes(row,'c')) {
           const ref = cell.getAttribute('r');
@@ -50,8 +53,9 @@
           if (nodes(cell,'f').length && v===undefined) throw new Error(`Recalculate and save the workbook in Excel. ${ref} has no saved formula result.`);
           cells[index-1]=type==='s' ? strings[Number(v)] : type==='inlineStr' ? nodes(cell,'t').map(t=>t.textContent).join('') : v ?? '';
         }
-        return Array.from({length:cells.length},(_,i)=>cells[i] ?? '');
-      });
+        sheetRows[rowNumber-1]=Array.from({length:cells.length},(_,i)=>cells[i] ?? '');
+      }
+      const rows=Array.from({length:sheetRows.length},(_,i)=>sheetRows[i]||[]);
       if (rows.some(r=>String(r[0]).toLowerCase()==='year' && String(r[3]).toLowerCase()==='frame')) {
         matches.push({...InstrumentCore.parseRows(rows),sheetName:sheet.getAttribute('name')});
       }

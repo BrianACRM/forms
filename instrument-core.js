@@ -50,6 +50,16 @@
     return n;
   }
   const round = n => Math.round((n + Number.EPSILON) * 10) / 10;
+  function approach({type,decisionAltitude=null,glidepath=null,coupled=false,completed=true,atControls=true,studentInstructorActual=false}){
+    if(coupled||!completed||(!atControls&&!studentInstructorActual))return 'excluded';
+    const t=String(type||'').trim().toUpperCase();
+    if(['1','A','1/A','ILS','PAR','ALS'].includes(t))return 'precision';
+    if(['2','B','2/B','ASR','ELVA','L/MF','LOC','NDB','SCA','TACAN','VOR','VOR/DME','LNAV','LNAV/VNAV'].includes(t))return 'nonprecision';
+    if(['3','4','C','3/C','AUTO','COUPLED'].includes(t))return 'excluded';
+    if(t==='LPV')return decisionAltitude===null||decisionAltitude===''||!Number.isFinite(Number(decisionAltitude))||Number(decisionAltitude)<0?'unknown':Number(decisionAltitude)<=300?'precision':'nonprecision';
+    if(t==='CCA')return glidepath===true?'precision':glidepath===false?'nonprecision':'unknown';
+    return 'unknown';
+  }
   function parseRows(rows) {
     const norm = v => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
     const hi = rows.findIndex(r => norm(r[0]) === 'year' && norm(r[1]) === 'month' && norm(r[2]) === 'day' && norm(r[3]) === 'frame');
@@ -61,8 +71,17 @@
       return i;
     };
     const total = find('total'), actual = find('act inst'), simulated = find('sim inst');
+    const optional = (...names) => names.map(n=>header.indexOf(n)).find(i=>i>=0) ?? -1;
+    const metaColumns={platform:optional('platform','event type'),device:optional('simulator id','device id','buno','buno/ser'),exception:optional('exception code','exc code'),organization:optional('org','organization code'),tec:optional('tec','type equipment code')};
+    const fpt=optional('fpt','first pilot time'),cpt=optional('cpt','copilot time');
     const precision = ['1/a','par','ils'].map(find),cca=find('cca');
     const nonprecision = ['2/b','asr','elva','l/mf','loc','ndb','sca','tacan','vor','vor/dme'].map(find);
+    const extraApproaches=header.flatMap((name,col)=>{
+      if(['als','lnav','lnav/vnav','lpv','gps','rnav','3','4','c','3/c','auto','coupled'].includes(name))return [{col,type:approach({type:name})}];
+      if(name==='lpv da <= 300 ft agl')return [{col,type:approach({type:'LPV',decisionAltitude:300})}];
+      if(name==='lpv da > 300 ft agl')return [{col,type:approach({type:'LPV',decisionAltitude:301})}];
+      return [];
+    });
     const flights = [];
     for (let i = hi + 1; i < rows.length; i++) {
       const r = rows[i];
@@ -72,6 +91,7 @@
       const date = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
       isoDate(date);
       const read = col => number(r[col], `Row ${i+1}, ${header[col]}`, true);
+      for(const col of [total,actual,simulated,fpt,cpt].filter(col=>col>=0))if(round(read(col))!==read(col))throw new Error(`Row ${i+1}: SHARP hours must be logged in tenths (§10.3.3).`);
       const count = cols => cols.reduce((sum, col) => {
         const n = read(col); if (!Number.isSafeInteger(n)) throw new Error(`Row ${i+1}: approach counts must be whole numbers.`);
         return sum+n;
@@ -79,7 +99,20 @@
       const frame = String(r[3] || '').trim();
       if (!frame) throw new Error(`Row ${i+1}: aircraft frame is missing.`);
       if(read(cca))throw new Error(`Row ${i+1}: CCA does not identify whether glidepath guidance was provided. Use classified approach entries or enter reviewed totals manually.`);
-      flights.push({sourceRow:i+1,date, frame, total:read(total), actual:read(actual), simulated:read(simulated), precision:count(precision), nonprecision:count(nonprecision)});
+      const metadata=Object.fromEntries(Object.entries(metaColumns).map(([key,col])=>[key,col>=0?String(r[col]??'').trim():'']));
+      const platformLabel=norm(metadata.platform);
+      const simulatorEvidence=platformLabel==='simulator'||metadata.exception.toUpperCase()==='T'||metadata.organization.toUpperCase()==='ZEZ'||/^2F144A-[12]$/i.test(metadata.device)||metadata.tec.toUpperCase()==='VECE';
+      if(platformLabel==='aircraft'&&simulatorEvidence)throw new Error(`Row ${i+1}: aircraft and simulator identifiers conflict. Correct the source record.`);
+      if((/^2F144A-[12]$/i.test(metadata.device)||metadata.tec.toUpperCase()==='VECE')&&frame.toUpperCase()!=='E-6B')throw new Error(`Row ${i+1}: E-6B simulator identifier conflicts with the reported frame.`);
+      const platform=simulatorEvidence?'simulator':platformLabel==='aircraft'?'aircraft':'unknown';
+      const pilotTime=fpt>=0&&cpt>=0?round(read(fpt)+read(cpt)):null;
+      const approaches={precision:count(precision),nonprecision:count(nonprecision),excludedApproaches:0};
+      for(const {col,type} of extraApproaches){
+        const n=count([col]);if(!n)continue;
+        if(type==='unknown')throw new Error(`Row ${i+1}: ${header[col].toUpperCase()} requires approach classification, including LPV decision altitude where applicable (§10.3.3).`);
+        approaches[type==='excluded'?'excludedApproaches':type]+=n;
+      }
+      flights.push({sourceRow:i+1,date,frame,total:read(total),actual:read(actual),simulated:read(simulated),...approaches,platform,pilotTime,metadata});
     }
     if (!flights.length) throw new Error('No flight entries found in this SHARP report.');
     flights.sort((a,b) => a.date.localeCompare(b.date));
@@ -107,5 +140,5 @@
     const m = /^(CAPT|CDR|LCDR|LTJG|LT|ENS|CWO[2-5])\s+(.+)$/i.exec(String(text).trim());
     return m ? {rank:m[1].toUpperCase(),name:m[2].toUpperCase()} : {rank:'',name:String(text).trim().toUpperCase()};
   }
-  return {gradeItems,isoDate,subtractMonths,displayDate,number,round,parseRows,summarize,splitRankName};
+  return {gradeItems,isoDate,subtractMonths,displayDate,number,round,approach,parseRows,summarize,splitRankName};
 });

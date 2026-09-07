@@ -1,5 +1,7 @@
 # Instrument calculation rules
 
+See the expanded [requirement audit and coverage limits](instrument-audit.md).
+
 Verified against **CNAF M-3710.7, 7 February 2025**, §13.2.1 and Appendix F.6.
 The [Navy issuances register](https://www.secnav.navy.mil/doni/manuals-opnav.aspx)
 lists that edition as active. [Official Navy Medicine copy](https://www.med.navy.mil/Portals/62/Documents/NMFSC/NMOTC/NAMI/ARWG/Miscellaneous/CNAF%20M_3710_7%20FEB%202025.pdf?ver=2QUgzKUiKkzOeFOiPQNxxA%3D%3D).
@@ -38,11 +40,11 @@ successful NATOPS instrument evaluation. Approved Appendix K simulators can
 satisfy up to one-half of the minimum instrument-rating requirements. That is a
 credit limitation, not an instruction to halve every `Sim Inst` value.
 
-The form generator computes and displays logged figures; it does not certify
-an instrument rating. This report lacks simulator device identifiers and sortie
-timing, and a one-year report cannot establish lifetime totals. Simulator approval,
-credit limits, special/exceptional rating provisions, the applicable instrument
-evaluation syllabus and issuing authority remain record-review items.
+The form generator displays logged figures and separately checks aircraft versus
+approved-simulator minimum credit. Missing identifiers remain unclassified.
+Career import requires confirmed complete history and a reviewed pilot-time basis.
+Simulator approval, exceptions, evaluation syllabus and issuing authority still
+require supporting records; computed figures alone do not certify a rating.
 
 ## Approach classification
 

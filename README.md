@@ -8,9 +8,17 @@ Serve this folder over HTTP; no build step or backend is required.
 1. Select **Instrument Check** and choose the check-flight date.
 2. Import a SHARP **Average Instrument Logbook** `.xlsx`. The page fills available
    personnel information and recent instrument hours and approach counts.
-3. Review the figures, enter lifetime totals and evaluation details, then download.
+3. Review aircraft/simulator source classifications and minimum-credit checks.
+   A complete career report can fill lifetime totals after coverage is confirmed;
+   aircraft pilot/model totals additionally require FPT+CPT or a confirmed Total
+   column basis. Enter evaluation details, then download.
    A single button can mark the standard evaluated items Q; takeoff and additional
-   items remain separate selections.
+  items remain separate selections.
+
+Use **Prepare for review** when source records or qualification evidence are
+incomplete. An issued/renewed recommendation requires the implemented credit/date
+checks and explicit examining/issuing-authority review. The application does not
+infer device approval, syllabus completion or examiner designation from a name.
 
 Pilot position, aircraft/simulator and unit commander use dropdowns. Selecting
 multiple forms fills equivalent flight dates, durations, expirations and pilot
@@ -50,16 +58,25 @@ fields. This permits edits under Adobe's [XFA override rules](https://helpx.adob
   The importer reports this limitation instead of assigning precision credit.
 - Flight detail rows are counted once. Footer totals and future flights are excluded.
   Multiple flights on the same date are retained. Blank logged metrics mean zero.
-- Recent totals include all aircraft frames. Report-only model hours use an exact,
+- Recent totals include all aircraft frames. Raw report model hours use an exact,
   case-insensitive frame match. Report-only totals include every logged entry
   through the check date; these are distinct from the recent prerequisite totals.
-  Workbook totals never become lifetime totals.
+  Limited reports never become lifetime totals. Complete-history import is explicit.
+- Frame and Sim Inst do not identify the physical platform. Optional platform,
+  exception code, ORG, device/TEC and FPT/CPT metadata are read when present.
+  Missing classification remains visible, with per-entry review and pagination.
+- Simulator time stays separate from aircraft pilot/model hours. Approved simulator
+  credit is capped independently for instrument hours, precision and nonprecision
+  requirements; printed logged hours are not halved. Manual credit uses the same caps.
 - SHARP often supplies only a first initial. The page does not invent a full first
   name, middle initial, EDIPI, years of experience, or career totals.
-- The expiration suggestion follows the example's convention (end of the same
-  month in the following year). Review it for the evaluation. Manual edits persist.
+- Expiration follows §13.1.2.1, including renewal within 60 days of the current
+  expiration. A qualified recommendation checks the written-exam 60-day window,
+  same-day prior completion, applicable ordinary/exceptional minimums and special
+  rating experience when selected. Nonstandard expiration requires an authority record.
 
-See [verified instrument rules and remaining record checks](docs/instrument-rules.md).
+See the [requirement audit, coverage and outstanding source checks](docs/instrument-audit.md).
+The requested review of all 400 manual pages is not yet complete.
 
 All workbook processing, calculations and document generation happen in the
 browser. Imported workbooks and applicant data are neither uploaded nor persisted
@@ -96,5 +113,12 @@ same source values to test export fidelity. Reconciliation between a workbook an
 a completed example is a separate comparison; the exporter must not silently
 adjust logged figures to fit a reference. Adobe Acrobat Reader remains the final
 check for native XFA calculations, date formatting, saving and signing.
+
+Independently reconcile a standard SHARP export using Python Decimal arithmetic:
+
+`python scripts/audit_sharp_report.py /path/to/report.xlsx YYYY-MM-DD output/audit`
+
+This produces a source-row CSV and period totals. It requires `openpyxl` and does
+not establish device approval or complete career coverage. Keep its outputs local.
 
 `vendor/pdf-lib-1.17.1.min.js` is PDF-Lib 1.17.1, with its MIT license alongside it.
