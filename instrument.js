@@ -12,12 +12,13 @@
   card.id='cfg_instrument';card.className='form-card';
   card.innerHTML=`<div class="form-card-header"><span>Instrument Check</span><span class="form-badge">OPNAV 3710/2</span></div>
   <div class="form-card-body">
-    <p class="instrument-help">Your original OPNAV 3710/2, REV. FEB-2023. Open the downloaded PDF in Adobe Acrobat Reader to view and sign.</p>
+    <p class="instrument-help">Your original OPNAV 3710/2, REV. FEB-2023. Open the downloaded PDF in Adobe Acrobat Reader to review, edit any entry, save, and sign.</p>
     <div class="section-title">Check flight</div>
     ${row(field('flightDate','8. Date of check flight','date')+field('lastEvaluation','4. Date of last evaluation','date'))}
     <label class="instrument-inline"><input type="checkbox" id="inst_initial"> Initial evaluation (no previous evaluation date)</label>
-    ${row(field('crewPosition','6. Crew position & qualifications','text','placeholder="E-6B Aircraft Commander"')+field('aircraftModel','9. Aircraft model','text','value="E-6B"'))}
-    ${row(field('bunoOverride','10. Aircraft BUNO / trainer ID (if different from shared BUNO)','text','placeholder="OFT-2/2F144A-2"'))}
+    ${row(select('crewPosition','6. Pilot position',[['','-- Select --'],['AIRCRAFT COMMANDER','Aircraft Commander'],['SECOND PILOT','Second Pilot'],['THIRD PILOT','Third Pilot']])+field('aircraftModel','9. Aircraft model','text','value="E-6B"'))}
+    ${row(select('buno','10. Aircraft BUNO / simulator',[]))}
+    <p class="instrument-help">Pilot position, aircraft/simulator, flight date, duration, and expiration fill across selected forms. You can edit an individual form’s flight details when they differ.</p>
     ${row(numeric('flightDuration','11. Flight duration (hours)')+field('expiration','12. Expiration date (review suggestion)','date'))}
     <section id="inst_importPanel"><div class="section-title">1. Import SHARP flight history</div>
     <label for="inst_file" class="instrument-file-label">Average Instrument Logbook (.xlsx)</label>
@@ -45,10 +46,11 @@
     ${row(numeric('yearsFlying','Total years flying experience (military & commercial)'))}
     <hr class="divider"><div class="section-title">Rating and written examination</div>
     ${row(field('currentRating','15. Current rating','text','value="STANDARD"')+field('issuedRating','16. Issued rating','text','value="STANDARD"'))}
-    ${row(select('certification','19. Written examination result',[['','-- Select --'],['Satisfactorily','Satisfactorily'],['Unsatisfactorily','Unsatisfactorily']]))}
-    ${row(numeric('exam1','20. First exam grade')+numeric('exam2','21. Second exam grade (if applicable)')+numeric('exam3','22. Third exam grade (if applicable)'))}
-    ${row(field('examinerName','23. Examining officer name')+field('examinerRank','24. Examining officer rank'))}
+    <div class="form-row instrument-exam-row">${select('certification','19. Written exam result',[['','-- Select --'],['Satisfactorily','Satisfactory'],['Unsatisfactorily','Unsatisfactory']])+numeric('exam1','20. First exam grade')}</div>
+    <details><summary>Second or third written examination</summary>${row(numeric('exam2','21. Second exam grade')+numeric('exam3','22. Third exam grade'))}</details>
+    ${row(field('examinerName','23. Examining officer name')+select('examinerRank','24. Examining officer rank',[['','-- Select --'],['ENS','ENS'],['LTJG','LTJG'],['LT','LT'],['LCDR','LCDR'],['CDR','CDR'],['CAPT','CAPT']]))}
     ${row(field('examinerUnit','25. Examining officer unit')+field('examDate','26. Date of exam','date'))}
+    <p id="inst_examinerSaved" class="instrument-help" aria-live="polite">Examining officer details are saved automatically on this browser.</p>
     <hr class="divider"><div class="section-title">27–28. Flight evaluation</div>
     <p class="instrument-help">Choose Q or U for each item evaluated. Leave items not evaluated blank.</p>
     <button type="button" class="instrument-button" id="inst_qualify">Mark standard evaluation items Q</button>
@@ -61,13 +63,35 @@
     <hr class="divider"><div class="section-title">Signature dates and document markings</div>
     <p class="instrument-help">Flight examiner and unit commander names come from the shared Signatures section below. Their signatures and the applicant’s signature remain blank for signing.</p>
     ${row(field('flightExaminerDate','31. Flight examiner date','date')+field('commanderDate','36. Unit commander date','date'))}
-    ${row(field('commanderOverride','Unit commander (rank and name, if not in list)'))}
+    ${row(select('commander','34–35. Unit commander',[]))}
     <details><summary>CUI markings</summary>
       ${row(field('controlledBy','Controlled by')+field('cuiCategory','CUI category'))}
       ${row(field('distribution','LDC')+field('pointOfContact','POC'))}
     </details>
   </div>`;
   document.querySelector('#generateBtn').previousElementSibling.before(card);
+  // These selectors mirror the existing shared controls, including optgroups.
+  el('inst_buno').innerHTML=el('buno').innerHTML;
+  el('inst_commander').innerHTML=el('commanderName').innerHTML;
+  for(const option of el('inst_buno').options){
+    if(option.value==='2F144A-1')option.textContent='OFT-1 / 2F144A-1';
+    if(option.value==='2F144A-2')option.textContent='OFT-2 / 2F144A-2';
+  }
+  const examinerKey='checkride.instrument.examiner.v1';
+  const examinerDefaults={examinerName:'R. A. BUCHHOLZ',examinerRank:'LT',examinerUnit:'VQ-7'};
+  let examinerPreferences=examinerDefaults;
+  try{
+    const saved=JSON.parse(localStorage.getItem(examinerKey));
+    if(saved&&Object.keys(examinerDefaults).every(key=>typeof saved[key]==='string'))examinerPreferences=saved;
+  }catch{}
+  for(const key of Object.keys(examinerDefaults)){
+    el('inst_'+key).value=examinerPreferences[key];
+    el('inst_'+key).addEventListener('input',()=>{
+      const settings=Object.fromEntries(Object.keys(examinerDefaults).map(id=>[id,value('inst_'+id)]));
+      try{localStorage.setItem(examinerKey,JSON.stringify(settings));el('inst_examinerSaved').textContent='Examining officer details saved on this browser.';}
+      catch{el('inst_examinerSaved').textContent='Browser storage is unavailable. Examiner changes apply to this form only.';}
+    });
+  }
   // Put import and its reporting date before personnel entry, so the user
   // can start with their workbook instead of retyping information it contains.
   const importPanel=el('inst_importPanel');importPanel.className='section';
@@ -196,8 +220,8 @@
     for(const key of ['basicOther','flightOther'])if(grades[key]&&!value('inst_'+key))error(key,'Describe the other evaluated item.');
     if(['renew','issue'].includes(value('inst_recommendation'))&&(Object.values(grades).includes('U')||value('inst_certification')==='Unsatisfactorily'))error('recommendation','A qualified recommendation conflicts with an unqualified item or unsatisfactory written exam.');
     if(!C.splitRankName(value('evaluatorName')).rank)errors.push('Instrument: include the flight examiner’s rank before their name.');
-    const commander=value('inst_commanderOverride')||value('commanderName');
-    if(commander&&!C.splitRankName(commander).rank)error('commanderOverride','Include the commander’s rank before their name.');
+    const commander=value('commanderName');
+    if(commander&&!C.splitRankName(commander).rank)error('commander','Choose the unit commander.');
     if(value('inst_recommendation')==='unqualified'&&!customRemarks)error('remarks','Add the actual deficiencies and follow-up to the remarks.');
     if(value('inst_remarks').length>1200)error('remarks','Shorten remarks to 1,200 characters to fit the original form.');
     for(const id of ['totalHours','modelHours'])try{C.number(value(id),id);}catch(e){errors.push(e.message);el(id).classList.add('invalid');}
@@ -213,8 +237,11 @@
     fields.lastEvaluation=el('inst_initial').checked?'':value('inst_lastEvaluation');
     fields.applicantName=`${value('lastName').toUpperCase()}, ${value('firstName')}${value('middleInit')?', '+value('middleInit').toUpperCase()+'.':''}`;
     const units={'FAIRECONRON SEVEN':'VQ-7','FAIRECONRON THREE':'VQ-3','FAIRECONRON FOUR':'VQ-4','AIRTEVRON TWO ZERO':'VX-20'};
-    Object.assign(fields,{rank:value('rank'),edipi:value('dodId'),unit:units[value('squadron')]||value('squadron'),totalHours:value('totalHours'),modelHours:value('modelHours'),buno:value('inst_bunoOverride')||value('buno')});
-    const evaluator=C.splitRankName(value('evaluatorName')),commander=C.splitRankName(value('inst_commanderOverride')||value('commanderName'));
+    const positionLabel=el('inst_crewPosition').selectedOptions[0]?.textContent||'';
+    fields.crewPosition=`${value('inst_aircraftModel')} ${positionLabel}`.trim();
+    const buno=value('buno');
+    Object.assign(fields,{rank:value('rank'),edipi:value('dodId'),unit:units[value('squadron')]||value('squadron'),totalHours:value('totalHours'),modelHours:value('modelHours'),buno:/^2F144A-[12]$/.test(buno)?`OFT-${buno.slice(-1)}/${buno}`:buno});
+    const evaluator=C.splitRankName(value('evaluatorName')),commander=C.splitRankName(value('commanderName'));
     Object.assign(fields,{flightExaminerName:evaluator.name,flightExaminerRank:evaluator.rank,commanderName:commander.name,commanderRank:commander.rank});
     const grades=Object.fromEntries(C.gradeItems.map(([id])=>[id,value('inst_grade_'+id)]));
     const bytes=await buildInstrumentPdf(await response.arrayBuffer(),fields,grades,value('inst_certification'));
@@ -222,6 +249,6 @@
     saveAs(new Blob([bytes],{type:'application/pdf'}),filename);
     return filename;
   }
-  window.instrumentForm={validate:validateInstrument,generate:generateInstrument,refresh};
+  window.instrumentForm={validate:validateInstrument,generate:generateInstrument,refresh,isSuggestedExpiration:()=>!!suggestedExpiration&&value('inst_expiration')===suggestedExpiration};
   refresh();
 })();

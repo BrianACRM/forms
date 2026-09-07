@@ -45,14 +45,15 @@ function packets(doc) {
 for(const key of ['lastEvaluation','flightDate','expiration','examDate','flightExaminerDate','commanderDate']){
   const [day,month,year]=values[key].split(' ');values[key]=`${year}-${String(['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'].indexOf(month)+1).padStart(2,'0')}-${day}`;
 }
-test('Original PDF preserves every layout byte except inserted field values',async()=>{
+test('Original PDF preserves every layout byte and allows calculated totals to be corrected',async()=>{
   const grades=Object.fromEntries(C.gradeItems.map(([id])=>[id,['takeoff','basicOther','flightOther'].includes(id)?'':'Q']));
   const template=fs.readFileSync('templates/OPNAV-3710-2-FEB-2023.pdf');
   const base=packets(await P.PDFDocument.load(template));
   assert.ok(base.datasets.includes('<form1/>'));assert.equal(base.form,undefined);
   const bytes=await build(template,values,grades,'Satisfactorily');
   const d=await P.PDFDocument.load(bytes),filled=packets(d);
-  const withoutValues=filled.template.replace(/(<field\b[^>]*\bname="(?:Exmoff|RnkNmeFltExmr|RnkNmeUnitCmdr|ContBy|CUICat|LDC|POC)"[^>]*>)<value><text>[\s\S]*?<\/text><\/value>/g,'$1');
+  assert.equal((filled.template.match(/<calculate override="ignore"\s*>/g)||[]).length,3);
+  const withoutValues=filled.template.replace(/(<field\b[^>]*\bname="(?:Exmoff|RnkNmeFltExmr|RnkNmeUnitCmdr|ContBy|CUICat|LDC|POC)"[^>]*>)<value><text>[\s\S]*?<\/text><\/value>/g,'$1').replace(/<calculate override="ignore"(\s*)>/g,'<calculate$1>');
   assert.equal(withoutValues,base.template,'Geometry, fonts, captions, format rules and signature controls unchanged');
   for(const packet of Object.keys(base).filter(k=>!['template','datasets'].includes(k)))assert.equal(filled[packet],base[packet],packet);
   for(const [key,name]of Object.entries(build.fieldNames))assert.ok(filled.datasets.includes(`<${name}>${String(values[key]||'').replace(/&/g,'&amp;').replace(/'/g,'&apos;')}</${name}>`),key);
@@ -72,4 +73,38 @@ test('XFA values are XML escaped, including values in unbound fields',()=>{
 });
 test('rejects overflowing remarks instead of clipping the original PDF',async()=>{
   await assert.rejects(build(fs.readFileSync('templates/OPNAV-3710-2-FEB-2023.pdf'),{remarks:'Long remarks. '.repeat(150)},{},''),/too long/);
+});
+test('rejects names that would be clipped by the original printed field',async()=>{
+  await assert.rejects(build(fs.readFileSync('templates/OPNAV-3710-2-FEB-2023.pdf'),{...values,applicantName:'LONGNAME '.repeat(20)},{},''),/Applicant name is too long/);
+});
+
+test('large multi-aircraft history retains all rows and exact tenth-hour totals',()=>{
+  const frames=['E-6B','FRAME-B','FRAME-C','FRAME-D','FRAME-E'];
+  const detail=[];let tenths=0,modelTenths=0;
+  for(let i=0;i<10000;i++){
+    const d=new Date(Date.UTC(1999,0,1+i)),hours=(i%99)+1;
+    detail.push(row(d.getUTCFullYear(),d.getUTCMonth()+1,d.getUTCDate(),frames[i%5],hours/10,.1,.2,1));
+    tenths+=hours;if(i%5===0)modelTenths+=hours;
+  }
+  const result=C.summarize(C.parseRows([header,...detail]),'2026-07-17','e-6b');
+  assert.equal(result.all.count,10000);assert.equal(result.all.total,tenths/10);
+  assert.equal(result.modelCount,2000);assert.equal(result.modelHours,modelTenths/10);
+  assert.equal(result.all.actual,1000);assert.equal(result.all.simulated,2000);assert.equal(result.all.precision,10000);
+});
+
+test('successive PDF exports keep grades, zero values and records isolated',async()=>{
+  const template=fs.readFileSync('templates/OPNAV-3710-2-FEB-2023.pdf');
+  const cases=['','Q','U'];
+  for(let n=0;n<30;n++){
+    const grades=Object.fromEntries(C.gradeItems.map(([id],i)=>[id,cases[(n+i)%3]]));
+    const v={...values,applicantName:`EXAMPLE ${n}, Alex`,precision6:String(n),actual6:'0',simulated6:'0',instrument6:'0',examinerName:`A. EXAMINER ${n}`};
+    const result=packets(await P.PDFDocument.load(await build(template,v,grades,n%2?'Satisfactorily':'Unsatisfactorily')));
+    assert.ok(result.datasets.includes(`<Namelfm>EXAMPLE ${n}, Alex</Namelfm>`));
+    assert.ok(result.datasets.includes('<Last6moa>0</Last6moa>'));
+    assert.ok(result.template.includes(`<value><text>A. EXAMINER ${n}</text></value>`));
+    const actual=[...result.datasets.matchAll(/<CheckBox[123]>([01])<\/CheckBox[123]>/g)].map(m=>m[1]);
+    const expected=C.gradeItems.flatMap(([id])=>[grades[id]==='Q'?'1':'0',grades[id]==='U'?'1':'0']);
+    assert.deepEqual(actual,expected);
+    assert.ok(result.datasets.includes(`<Certify>${n%2?'SATISFACTORILY':'UNSATISFACTORILY'}</Certify>`));
+  }
 });

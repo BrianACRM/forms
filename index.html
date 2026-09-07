@@ -7,9 +7,9 @@
 <script src="jszip.min.js"></script>
 <script src="FileSaver.min.js"></script>
 <script src="vendor/pdf-lib-1.17.1.min.js"></script>
-<script src="instrument-core.js"></script>
-<script src="sharp-import.js"></script>
-<script src="instrument-pdf.js"></script>
+<script src="instrument-core.js?v=20260907-4"></script>
+<script src="sharp-import.js?v=20260907-4"></script>
+<script src="instrument-pdf.js?v=20260907-4"></script>
 <style>
   :root { --navy:#003366; --navy-light:#004080; --gold:#c5a44e; --bg:#f4f6f8; --card:#fff; --border:#d0d5dd; --text:#1a1a1a; --label:#344054; --danger:#b42318; --success:#067647; }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -92,6 +92,7 @@
   #cfg_instrument .invalid{border-color:var(--danger)!important;background:#fef3f2!important}
   #cfg_instrument details{margin-top:14px}
   #cfg_instrument summary{cursor:pointer;margin-bottom:10px;font-size:.85rem}
+  .instrument-exam-row .form-group{flex:0 1 220px}
   @media(max-width:600px){.instrument-grade-columns{grid-template-columns:1fr}.form-card-body{padding:18px 14px}.grade-table th,.grade-table td{padding:6px}}
 </style>
 </head>
@@ -904,7 +905,7 @@ function validate() {
   if ($('chk_natops').checked || $('chk_arp').checked) check('middleInit','MI');
   check('rank','Rank'); check('dodId','DoD EDIPI'); check('squadron','Squadron/Unit');
   check('totalHours','Total Hours'); check('modelHours','Model Hours');
-  if ($('chk_natops').checked || $('chk_arp').checked || !val('inst_bunoOverride')) check('buno','Aircraft BUNO');
+  check('buno','Aircraft BUNO');
   check('evaluatorName','Evaluator Name');
   if ($('chk_natops').checked) {
     check('natops_position','NATOPS Position');
@@ -1331,6 +1332,7 @@ async function generateAll() {
   $('generateBtn').disabled=false; $('generateBtn').textContent='GENERATE ALL SELECTED FORMS';
 }
 </script>
-<script src="instrument.js"></script>
+<script src="instrument.js?v=20260907-4"></script>
+<script src="form-sharing.js?v=20260907-4"></script>
 </body>
 </html>
